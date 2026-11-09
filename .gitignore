@@ -63,7 +63,8 @@ AGENTS.md
 # 路徑不變是刻意的:spec 相對路徑 / npm test / release.sh 全部不用改。
 # 不用 submodule:那會在公開 repo 留下 .gitmodules 指向私有 URL。
 # 重新掛載:git clone https://github.com/jimmysu0309/Shinkansen-test.git test
-test/
+# [Ekiden fork] fork 把公開 repo 最後一版測試(8f4c2cb^)放進版控,作為「沒有新增失敗」的基準,
+# 所以拿掉原本的 test/ 規則(見 docs/FORK-NOTES.md §3.4)。Playwright 的輸出由本檔開頭的規則排除。
 
 # 內部文件與 Claude 工作流檔的疊加版控(2026-08-06 起)
 # SPEC-PRIVATE.md / CLAUDE.md / AGENTS.md / .claude/ 檔案仍在原位(上方規則已 ignore),

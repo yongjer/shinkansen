@@ -1,0 +1,1 @@
+步驟一:在你的電腦上安裝 Claude Code CLI 並用 Anthropic 帳號驗證。
