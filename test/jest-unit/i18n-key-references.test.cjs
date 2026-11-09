@@ -42,7 +42,8 @@ function collectReferencedKeys() {
       const full = path.join(dir, name);
       const st = fs.statSync(full);
       if (st.isDirectory()) {
-        if (['vendor', 'node_modules'].includes(name)) continue;
+        // [Ekiden fork] fork/ 的字串表在 fork/i18n/（執行期掛到 _tables），由 fork-tests/unit/guards.test.mjs 檢查
+        if (['vendor', 'node_modules', 'fork'].includes(name)) continue;
         walk(full);
       } else if (name.endsWith('.js') && name !== 'i18n.js') {
         files.push(full);

@@ -15,6 +15,7 @@
 //   options 頁預設拿 window.__SKShortcuts，node 端 spec 用 createRequire 傳入
 // @returns {{ clean: object, warnings: string[] }}
 import { TARGET_LANGUAGES, UI_LANGUAGES } from '../lib/storage.js';
+import { sanitizeForkSettings } from '../fork/settings/schema.js'; // [Ekiden fork]
 
 export function sanitizeImport(raw, _t, SC = globalThis.__SKShortcuts) {
   const clean = {};
@@ -375,6 +376,14 @@ export function sanitizeImport(raw, _t, SC = globalThis.__SKShortcuts) {
     } else {
       warnings.push(_t('options.import.warningSkipType', { key: 'customShortcuts' }));
     }
+  }
+
+  // [Ekiden fork] 驛傳自有設定（storage.sync 'fork'）：規則在 fork/settings/schema.js，
+  // 不認識的欄位丟掉、不合法的值回預設；金鑰不在這裡（存 storage.local，匯出檔本來就不含）
+  if (raw.fork !== undefined) {
+    const { clean: forkClean, warnings: forkWarnings } = sanitizeForkSettings(raw.fork);
+    clean.fork = forkClean;
+    for (const w of forkWarnings) warnings.push(_t('options.import.warningSkipType', { key: `fork.${w}` }));
   }
 
   return { clean, warnings };

@@ -29,7 +29,9 @@ export const MODEL_PRICING = {
   // gemini-3.8-flash:官方促銷價 $0.75 / $3.75 至 2026-12-31,
   // 2027-01-01 起回 $1.50 / $7.50——屆時更新此列 + options 選單價格標示。
   // context cache $0.075 = input 10% → 折扣走 DEFAULT。
-  'gemini-3.8-flash':              { inputPerMTok: 0.75, outputPerMTok: 3.75, cachedDiscount: DEFAULT_GEMINI_CACHED_DISCOUNT },
+  'gemini-3.8-flash':              { inputPerMTok: 0.75, outputPerMTok: 3.75, cachedDiscount: DEFAULT_GEMINI_CACHED_DISCOUNT,
+    // [Ekiden fork] 生效日期排程：到期自動改用新價，不必等發版改這一列（見 resolveScheduledPricing）
+    schedule: [{ from: '2027-01-01', inputPerMTok: 1.50, outputPerMTok: 7.50 }] },
 };
 
 // v1.6.14:內建表校準日期。UI 顯示「(YYYY-MM 校準)」提示使用者可能過時。
@@ -45,10 +47,10 @@ export const LAST_CALIBRATED_DATE = '2026-09';
  * @param {string} model 模型 ID
  * @param {object|null} settings 完整 settings(可只帶 modelPricingOverrides)
  */
-export function getPricingForModel(model, settings = null) {
+export function getPricingForModel(model, settings = null, at = Date.now()) {
   if (!model) return null;
   const override = settings?.modelPricingOverrides?.[model] || {};
-  const builtIn = MODEL_PRICING[model] || null;
+  const builtIn = resolveScheduledPricing(MODEL_PRICING[model] || null, at);
   const oIn = Number(override.inputPerMTok);
   const oOut = Number(override.outputPerMTok);
   const oDisc = Number(override.cachedDiscount);
@@ -61,4 +63,136 @@ export function getPricingForModel(model, settings = null) {
       ? oDisc
       : (builtIn?.cachedDiscount ?? DEFAULT_GEMINI_CACHED_DISCOUNT),
   };
+}
+
+
+// ─── [Ekiden fork] 生效日期排程與多模態計價 ─────────────────────────────
+// Google 的促銷價有明確到期日（例如 3.8 Flash / 3.8 TTS 到 2026-12-31），內建表只寫一組價格
+// 會在到期後少算。entry 可帶 schedule: [{ from: 'YYYY-MM-DD', ...要覆蓋的欄位 }]，
+// from 當天起（以美西時間 00:00 計）改用該組數字。
+// 來源：https://ai.google.dev/gemini-api/docs/pricing（2026-11-09 校準）
+
+const PRICING_TZ_OFFSET = '-08:00';
+
+function scheduleStart(from) {
+  const t = Date.parse(`${from}T00:00:00${PRICING_TZ_OFFSET}`);
+  return Number.isFinite(t) ? t : Infinity;
+}
+
+/** 依時間點套用 schedule，回傳不含 schedule 欄位的計價物件（null 原樣回傳）。 */
+export function resolveScheduledPricing(entry, at = Date.now()) {
+  if (!entry) return null;
+  const { schedule, ...base } = entry;
+  if (!Array.isArray(schedule) || schedule.length === 0) return base;
+  let out = base;
+  const sorted = [...schedule].sort((a, b) => scheduleStart(a.from) - scheduleStart(b.from));
+  for (const step of sorted) {
+    if (scheduleStart(step.from) <= at) {
+      const { from, ...fields } = step;
+      out = { ...out, ...fields };
+    }
+  }
+  return out;
+}
+
+// 音訊 token 換算：官方以每秒 25 個 token 計（輸入與輸出相同）
+export const AUDIO_TOKENS_PER_SECOND = 25;
+
+// 語音模型（TTS / 即時轉錄 / 即時口譯）各模態分開計價，USD per 1M tokens。
+// input / output 底下的 key 是模態：text / audio / image。
+// 模型 ID 只在這裡與 fork 設定預設值出現，其他程式一律從這裡讀。
+export const MODALITY_MODEL_PRICING = {
+  'gemini-3.8-flash-tts': {
+    kind: 'tts',
+    input: { text: 0.50 },
+    output: { audio: 9.00 },
+    schedule: [{ from: '2027-01-01', input: { text: 1.00 }, output: { audio: 18.00 } }],
+  },
+  'gemini-3.8-flash-lite-tts': {
+    kind: 'tts',
+    input: { text: 0.50 },
+    output: { audio: 6.00 },
+    schedule: [{ from: '2027-01-01', input: { text: 1.00 }, output: { audio: 12.00 } }],
+  },
+  'gemini-3.5-transcribe-live': {
+    kind: 'asr',
+    input: { audio: 3.50 },
+    output: { text: 21.00 },
+  },
+  'gemini-3.5-live-translate-preview': {
+    kind: 'live-translate',
+    input: { audio: 3.50 },
+    output: { audio: 21.00 },
+  },
+};
+
+export function getModalityPricing(model, at = Date.now()) {
+  return resolveScheduledPricing(MODALITY_MODEL_PRICING[model] || null, at);
+}
+
+export function estimateAudioTokens(seconds) {
+  const s = Number(seconds);
+  return Number.isFinite(s) && s > 0 ? Math.ceil(s * AUDIO_TOKENS_PER_SECOND) : 0;
+}
+
+const MODALITIES = ['text', 'audio', 'image'];
+
+function emptyModalities() {
+  return { text: 0, audio: 0, image: 0 };
+}
+
+function addDetails(target, details) {
+  if (!Array.isArray(details)) return false;
+  let any = false;
+  for (const d of details) {
+    const m = String(d?.modality || '').toLowerCase();
+    const n = Number(d?.tokenCount) || 0;
+    if (MODALITIES.includes(m)) {
+      target[m] += n;
+      any = true;
+    }
+  }
+  return any;
+}
+
+/**
+ * 把 Gemini 回應的 usageMetadata 轉成 { input: {text,audio,image}, output: {text,audio,image} }。
+ * 依模態明細（promptTokensDetails / candidatesTokensDetails / responseTokensDetails）分類；
+ * 沒有明細時，總數歸到 fallback 指定的模態。
+ */
+export function usageFromMetadata(meta, { inputFallback = 'text', outputFallback = 'text' } = {}) {
+  const input = emptyModalities();
+  const output = emptyModalities();
+  if (!meta || typeof meta !== 'object') return { input, output };
+  if (!addDetails(input, meta.promptTokensDetails)) {
+    input[inputFallback] += Number(meta.promptTokenCount) || 0;
+  }
+  const outDetails = meta.candidatesTokensDetails || meta.responseTokensDetails;
+  if (!addDetails(output, outDetails)) {
+    output[outputFallback] += (Number(meta.candidatesTokenCount) || Number(meta.responseTokenCount) || 0);
+  }
+  // 思考 token 以輸出價計（與上游 Gemini 文字模型的計費慣例一致）
+  output[outputFallback] += Number(meta.thoughtsTokenCount) || 0;
+  return { input, output };
+}
+
+/**
+ * 依模態計算費用（USD）。沒有該模態價格的 token 以同方向第一個有價格的模態計，
+ * 避免少算（例如 TTS 輸入只列 text 價）。找不到模型回傳 null。
+ */
+export function computeModalityCostUSD(model, usage, at = Date.now()) {
+  const p = getModalityPricing(model, at);
+  if (!p) return null;
+  const side = (prices, counts) => {
+    const fallbackRate = Object.values(prices || {})[0] || 0;
+    let usd = 0;
+    for (const m of MODALITIES) {
+      const n = Number(counts?.[m]) || 0;
+      if (!n) continue;
+      const rate = prices?.[m] ?? fallbackRate;
+      usd += (n / 1e6) * rate;
+    }
+    return usd;
+  };
+  return side(p.input, usage?.input) + side(p.output, usage?.output);
 }

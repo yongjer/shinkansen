@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ekiden 設定</title>
+  <link rel="stylesheet" href="../../options/options.css">
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div id="save-bar" class="save-bar" hidden></div>
+
+  <div class="container">
+    <h1>
+      <img src="../../icons/icon-48.png" class="page-title-icon" alt="">
+      <span data-i18n="fork.settings.title">驛傳設定</span>
+    </h1>
+    <p class="muted">
+      <a href="../../options/options.html" data-i18n="fork.settings.back">← 回到主要設定</a>
+      · <span data-i18n="fork.settings.intro">這一頁是驛傳在原版之外新增的設定，變更會自動儲存。</span>
+    </p>
+
+    <!-- ── 翻譯預設使用的引擎 ─────────────────────────────── -->
+    <section id="sec-presets">
+      <h2 data-i18n="fork.presets.heading">翻譯預設使用的引擎</h2>
+      <p class="muted" data-i18n="fork.presets.hint"></p>
+      <div id="preset-rows"></div>
+    </section>
+
+    <!-- ── 機器翻譯服務 ─────────────────────────────────── -->
+    <section id="sec-engines">
+      <h2 data-i18n="fork.engines.heading">機器翻譯服務</h2>
+      <p class="muted" data-i18n="fork.engines.hint"></p>
+
+      <label>
+        <span data-i18n="fork.sourceLang.label">來源語言</span>
+        <select id="source-lang"></select>
+        <small class="muted" data-i18n="fork.sourceLang.hint"></small>
+      </label>
+
+      <div class="engine-card" data-engine="google">
+        <div class="engine-head">
+          <strong data-i18n="fork.engine.google.name">Google Translate</strong>
+          <span class="badge unofficial" data-i18n="fork.badge.unofficial"></span>
+          <span class="engine-status"></span>
+        </div>
+        <p class="muted" data-i18n="fork.engine.google.desc"></p>
+      </div>
+
+      <div class="engine-card" data-engine="microsoft-edge">
+        <div class="engine-head">
+          <strong data-i18n="fork.engine.microsoft-edge.name">Microsoft Translator</strong>
+          <span class="badge unofficial" data-i18n="fork.badge.unofficial"></span>
+          <span class="engine-status"></span>
+        </div>
+        <p class="muted" data-i18n="fork.engine.microsoft-edge.desc"></p>
+      </div>
+
+      <div class="engine-card" data-engine="azure">
+        <div class="engine-head">
+          <strong data-i18n="fork.engine.azure.name">Azure AI Translator</strong>
+          <span class="badge official" data-i18n="fork.badge.official"></span>
+          <span class="engine-status"></span>
+        </div>
+        <p class="muted" data-i18n="fork.engine.azure.desc"></p>
+        <label>
+          <span data-i18n="fork.field.azureKey">金鑰</span>
+          <span class="api-key-row">
+            <input type="password" autocomplete="off" spellcheck="false" data-secret="azureKey">
+            <button type="button" class="ghost-btn" data-toggle-secret data-i18n="options.action.show">顯示</button>
+          </span>
+          <small class="muted" data-i18n="fork.field.keyHint"></small>
+        </label>
+        <label>
+          <span data-i18n="fork.field.azureRegion">區域</span>
+          <input type="text" spellcheck="false" data-bind="mt.azure.region" placeholder="eastasia">
+        </label>
+        <label>
+          <span data-i18n="fork.field.azureEndpoint">端點（選填）</span>
+          <input type="text" spellcheck="false" data-bind="mt.azure.endpoint" data-url placeholder="https://api.cognitive.microsofttranslator.com">
+        </label>
+      </div>
+
+      <div class="engine-card" data-engine="deepl">
+        <div class="engine-head">
+          <strong data-i18n="fork.engine.deepl.name">DeepL API</strong>
+          <span class="badge official" data-i18n="fork.badge.official"></span>
+          <span class="engine-status"></span>
+        </div>
+        <p class="muted" data-i18n="fork.engine.deepl.desc"></p>
+        <label>
+          <span data-i18n="fork.field.deeplKey">驗證金鑰</span>
+          <span class="api-key-row">
+            <input type="password" autocomplete="off" spellcheck="false" data-secret="deeplKey">
+            <button type="button" class="ghost-btn" data-toggle-secret data-i18n="options.action.show">顯示</button>
+          </span>
+          <small class="muted" data-i18n="fork.field.keyHint"></small>
+        </label>
+      </div>
+
+      <div class="engine-card" data-engine="deeplx">
+        <div class="engine-head">
+          <strong data-i18n="fork.engine.deeplx.name">DeepLX</strong>
+          <span class="badge unofficial" data-i18n="fork.badge.unofficial"></span>
+          <span class="engine-status"></span>
+        </div>
+        <p class="muted" data-i18n="fork.engine.deeplx.desc"></p>
+        <label>
+          <span data-i18n="fork.field.deeplxUrl">服務網址</span>
+          <input type="text" spellcheck="false" data-bind="mt.deeplx.url" data-url data-i18n-attr-placeholder="fork.field.deeplxUrlPlaceholder">
+        </label>
+        <label>
+          <span data-i18n="fork.field.deeplxToken">存取權杖（選填）</span>
+          <span class="api-key-row">
+            <input type="password" autocomplete="off" spellcheck="false" data-secret="deeplxToken">
+            <button type="button" class="ghost-btn" data-toggle-secret data-i18n="options.action.show">顯示</button>
+          </span>
+        </label>
+      </div>
+
+      <div class="engine-card" data-engine="chrome-translator" data-no-rate>
+        <div class="engine-head">
+          <strong data-i18n="fork.engine.chrome-translator.name">Chrome 內建翻譯</strong>
+          <span class="badge official" data-i18n="fork.badge.onDevice"></span>
+          <span class="engine-status" id="ct-status"></span>
+        </div>
+        <p class="muted" data-i18n="fork.engine.chrome-translator.desc"></p>
+      </div>
+    </section>
+
+    <!-- ── 免費引擎備援順序 ─────────────────────────────── -->
+    <section id="sec-chain">
+      <h2 data-i18n="fork.chain.heading">免費引擎備援順序</h2>
+      <p class="muted" data-i18n="fork.chain.hint"></p>
+      <ol id="chain-list" class="chain-list"></ol>
+      <div class="test-row">
+        <button type="button" class="ghost-btn" data-test="free-chain" data-i18n="options.action.test">測試</button>
+      </div>
+      <div class="api-test-result" data-result="free-chain" hidden></div>
+    </section>
+
+    <!-- ── 其他 OpenAI 相容服務 ─────────────────────────── -->
+    <section id="sec-providers">
+      <h2 data-i18n="fork.providers.heading">其他 OpenAI 相容服務</h2>
+      <p class="muted" data-i18n="fork.providers.hint"></p>
+      <div id="provider-list"></div>
+      <div class="btn-row">
+        <button type="button" class="secondary" id="provider-add" data-i18n="fork.providers.add">新增服務</button>
+        <small class="muted" id="provider-max" hidden></small>
+      </div>
+    </section>
+
+    <!-- ── 設定備份 ─────────────────────────────────────── -->
+    <section id="sec-backup">
+      <h2 data-i18n="fork.backup.heading">設定備份</h2>
+      <p class="muted" data-i18n="fork.backup.hint"></p>
+
+      <label class="checkbox-label">
+        <input type="checkbox" id="backup-include-keys" data-bind="backup.includeKeys">
+        <span class="checkbox-body">
+          <span data-i18n="fork.backup.includeKeys">備份包含 API 金鑰（以密語加密）</span>
+          <small class="muted" data-i18n="fork.backup.includeKeysHint"></small>
+        </span>
+      </label>
+      <label id="backup-passphrase-row" hidden>
+        <span data-i18n="fork.backup.passphrase">密語</span>
+        <span class="api-key-row">
+          <input type="password" id="backup-passphrase" autocomplete="new-password" spellcheck="false">
+          <button type="button" class="ghost-btn" data-toggle-secret data-i18n="options.action.show">顯示</button>
+        </span>
+        <small class="muted" data-i18n="fork.backup.passphraseHint"></small>
+      </label>
+
+      <h3 data-i18n="fork.backup.local">備份檔</h3>
+      <div class="btn-row">
+        <button type="button" class="secondary" id="backup-export" data-i18n="fork.backup.export">下載備份檔</button>
+        <button type="button" class="secondary" id="backup-import" data-i18n="fork.backup.import">從備份檔還原</button>
+        <input type="file" id="backup-file" accept="application/json,.json" hidden>
+      </div>
+
+      <h3 data-i18n="fork.backup.webdav">WebDAV</h3>
+      <p class="muted" data-i18n="fork.backup.webdavHint"></p>
+      <label>
+        <span data-i18n="fork.backup.webdavUrl">伺服器網址</span>
+        <input type="text" spellcheck="false" data-bind="backup.webdav.url" data-url data-i18n-attr-placeholder="fork.backup.webdavUrlPlaceholder">
+      </label>
+      <label>
+        <span data-i18n="fork.backup.webdavUser">使用者名稱</span>
+        <input type="text" spellcheck="false" autocomplete="off" data-bind="backup.webdav.username">
+      </label>
+      <label>
+        <span data-i18n="fork.backup.webdavPassword">密碼</span>
+        <span class="api-key-row">
+          <input type="password" autocomplete="off" spellcheck="false" data-secret="webdavPassword">
+          <button type="button" class="ghost-btn" data-toggle-secret data-i18n="options.action.show">顯示</button>
+        </span>
+      </label>
+      <label>
+        <span data-i18n="fork.backup.webdavDir">資料夾</span>
+        <input type="text" spellcheck="false" data-bind="backup.webdav.dir" placeholder="ekiden">
+      </label>
+      <div class="btn-row">
+        <button type="button" class="ghost-btn" id="webdav-test" data-i18n="fork.backup.testConn">測試連線</button>
+        <button type="button" class="secondary" id="webdav-upload" data-i18n="fork.backup.upload">上傳備份</button>
+        <button type="button" class="secondary" id="webdav-restore" data-i18n="fork.backup.restore">下載並還原</button>
+      </div>
+      <small class="muted" id="webdav-last"></small>
+
+      <h3 data-i18n="fork.backup.gdrive">Google Drive（選用）</h3>
+      <p class="muted" data-i18n-html="fork.backup.gdriveHint.html"></p>
+      <label>
+        <span data-i18n="fork.backup.gdriveClientId">OAuth 用戶端 ID</span>
+        <input type="text" spellcheck="false" data-bind="backup.gdrive.clientId" placeholder="1234567890-xxxx.apps.googleusercontent.com">
+      </label>
+      <label>
+        <span data-i18n="fork.backup.gdriveRedirect">重新導向 URI</span>
+        <input type="text" id="gdrive-redirect" readonly>
+      </label>
+      <div class="btn-row">
+        <button type="button" class="ghost-btn" id="gdrive-connect" data-i18n="fork.backup.gdriveConnect">連結 Google Drive</button>
+        <button type="button" class="secondary" id="gdrive-upload" data-i18n="fork.backup.upload" disabled>上傳備份</button>
+        <button type="button" class="secondary" id="gdrive-restore" data-i18n="fork.backup.restore" disabled>下載並還原</button>
+        <button type="button" class="ghost-btn" id="gdrive-disconnect" data-i18n="fork.backup.gdriveDisconnect" hidden>中斷連結</button>
+      </div>
+      <small class="muted" id="gdrive-last"></small>
+
+      <div class="api-test-result" id="backup-status" role="status" hidden></div>
+    </section>
+  </div>
+
+  <dialog id="restore-dialog" class="restore-dialog">
+    <form method="dialog">
+      <h3 data-i18n="fork.restore.title">還原設定</h3>
+      <p id="restore-summary"></p>
+      <p class="warn" data-i18n="fork.restore.warning">還原會覆蓋目前的設定。</p>
+      <div id="restore-keys-block">
+        <label class="checkbox-label">
+          <input type="checkbox" id="restore-with-keys">
+          <span data-i18n="fork.restore.withKeys">一併還原 API 金鑰</span>
+        </label>
+        <label id="restore-passphrase-row" hidden>
+          <span data-i18n="fork.backup.passphrase">密語</span>
+          <input type="password" id="restore-passphrase" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+      <p class="muted" id="restore-no-keys" data-i18n="fork.restore.noKeys" hidden></p>
+      <p class="restore-error" id="restore-error" hidden></p>
+      <div class="btn-row dialog-actions">
+        <button type="button" class="secondary" id="restore-cancel" data-i18n="fork.restore.cancel">取消</button>
+        <button type="button" class="primary" id="restore-confirm" data-i18n="fork.restore.confirm">還原</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="../../lib/i18n.js"></script>
+  <script src="../i18n/fork-i18n.js"></script>
+  <script src="../i18n/fork-strings.js"></script>
+  <script src="../i18n/settings-strings.js"></script>
+  <script src="../../lib/shortcut-utils.js"></script>
+  <script type="module" src="settings.js"></script>
+</body>
+</html>

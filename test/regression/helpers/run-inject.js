@@ -41,8 +41,9 @@ export async function getShinkansenEvaluator(page) {
   // 在閒置時與原本一樣快(< 500ms)、在高負載時也能等到位才繼續,不再 flaky。
   const findShinkansen = () => {
     const isolated = contexts.filter((c) => c?.auxData?.type === 'isolated');
-    return isolated.find((c) => c.name === 'Shinkansen')
-        || isolated.find((c) => /Shinkansen/i.test(c.name || ''));
+    // [Ekiden fork] isolated world 名稱 = 擴充功能名稱；fork 改名為 Ekiden 後兩者都接受
+    return isolated.find((c) => c.name === 'Shinkansen' || c.name === 'Ekiden')
+        || isolated.find((c) => /Shinkansen|Ekiden/i.test(c.name || ''));
   };
 
   let shinkansen = null;

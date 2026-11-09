@@ -50,7 +50,7 @@ async function getTopFrameEvaluator(page) {
   let top = null;
   while (Date.now() < deadline) {
     top = contexts.find((c) => c.auxData?.type === 'isolated'
-      && /Shinkansen/i.test(c.name || '')
+      && /Shinkansen|Ekiden/i.test(c.name || '') // [Ekiden fork] 擴充功能改名
       && c.auxData?.frameId === rootId);
     if (top) break;
     await new Promise((r) => setTimeout(r, 100));

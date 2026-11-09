@@ -11,6 +11,8 @@
     "test:version": "playwright test test/version-check.spec.js",
     "test:jest": "jest --config jest.config.cjs",
     "test:all": "playwright test && jest --config jest.config.cjs",
+    "test:fork": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config fork-tests/jest.config.cjs",
+    "test:fork:e2e": "playwright test --config fork-tests/e2e/playwright.config.mjs",
     "debug": "node tools/harness/debug-harness.js",
     "pdf-layout": "node tools/harness/pdf-layout-harness.js",
     "pdf-snapshot": "node tools/harness/pdf-layout-snapshot.js",

@@ -2607,7 +2607,7 @@ function renderTable(records) {
   // AMO source review: usage records 來自本 extension 自己寫進 IndexedDB(usage-db.js）的計費紀錄，
   // 所有 string 欄位渲染前都經 escapeHtml/escapeAttr，數字欄位是計算結果。無外部 user input 流入。
   tbody.innerHTML = pageRecords.map(r => {
-    const isGoogle = r.engine === 'google';  // v1.4.0
+    const isGoogle = r.engine === 'google' || r.billingUnit === 'chars';  // v1.4.0；[Ekiden fork] 以字元計的機器翻譯引擎同樣顯示字元數
     // v0.99: 思考 token 以 output 費率計費，加入明細計算
     const billedTokens = (r.billedInputTokens || 0) + (r.outputTokens || 0);
     // v1.5.7: 模型欄顯示 preset label；查不到才回退 model id 短名

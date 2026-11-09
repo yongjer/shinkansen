@@ -1,13 +1,13 @@
 {
   "extName": {
-    "message": "Shinkansen",
+    "message": "Ekiden",
     "description": "확장 프로그램 이름"
   },
   "extDescription": {
-    "message": "웹 페이지·YouTube 자막을 위한 빠르고 부드러운 번역 확장 프로그램. 8개 대상 언어와 다양한 AI 엔진 지원. 데이터는 브라우저를 떠나지 않습니다."
+    "message": "웹 페이지와 YouTube 자막 번역 확장 프로그램. Gemini, 사용자 지정 AI, DeepL, Microsoft, Google 지원. 데이터는 선택한 서비스로만 전송됩니다."
   },
   "actionTitle": {
-    "message": "Shinkansen 번역",
+    "message": "Ekiden 번역",
     "description": "工具列圖示 tooltip（manifest action.default_title）"
   },
   "cmdTranslateMain": {

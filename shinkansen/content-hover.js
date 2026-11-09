@@ -222,11 +222,13 @@
     const preset = presets.find((p) => p.slot === 2) || presets[0] || {};
     const target = STATE.targetLanguage;
     const convertDirection = target === 'zh-TW' ? 'cn2twp' : (target === 'zh-CN' ? 'twp2cn' : null);
+    // [Ekiden fork] 主要預設在驛傳設定頁改用的引擎（沒設定 = {}，行為與上游相同）
+    const forkSel = (await SK.forkResolvePreset?.(preset.slot ?? 2, preset.engine)) || {};
     if (preset.engine === 'google') {
-      return (units, signal) => SK.translateUnitsGoogle(units, { signal });
+      return (units, signal) => SK.translateUnitsGoogle(units, { signal, mtEngine: forkSel.mtEngine });
     }
     if (preset.engine === 'openai-compat') {
-      return (units, signal) => SK.translateUnits(units, { engine: 'openai-compat', convertDirection, signal });
+      return (units, signal) => SK.translateUnits(units, { engine: 'openai-compat', convertDirection, signal, modelOverride: forkSel.modelOverride });
     }
     return (units, signal) => SK.translateUnits(units, { modelOverride: preset.model || null, engine: 'gemini', convertDirection, signal });
   }

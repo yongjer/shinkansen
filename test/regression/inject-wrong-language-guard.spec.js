@@ -32,10 +32,14 @@ test('wrong-language-guard: 德文 target 收到中文譯文 → 不注入、保
   const { evaluate } = await getShinkansenEvaluator(page);
 
   // 目標語言設德文（拉丁字母 target）
-  await evaluate(`window.__SK.STATE.targetLanguage = 'de'`);
+  // [Ekiden fork] 設定與注入放在同一段同步程式碼：頁面載入時的簡繁自動轉換（autoConvertZhWithRetry）
+  // 是非同步的，會依儲存的設定把 STATE.targetLanguage 寫回 zh-TW；分成兩次 evaluate 時，
+  // 它可能剛好插在中間（service worker 冷啟動越慢越容易發生）。
+  const setDe = `window.__SK.STATE.targetLanguage = 'de';`;
 
   // (1) 掉語言：注入中文譯文 → 守門攔下 → #target 維持英文原文
   const afterChinese = await evaluate(`(() => {
+    ${setDe}
     const el = document.querySelector('#target');
     window.__shinkansen.testInject(el, ${JSON.stringify(CHINESE)});
     return el.textContent.trim();
@@ -44,6 +48,7 @@ test('wrong-language-guard: 德文 target 收到中文譯文 → 不注入、保
 
   // (2) 正常德文譯文 → 照常注入
   const afterGerman = await evaluate(`(() => {
+    ${setDe}
     const el = document.querySelector('#target');
     window.__shinkansen.testInject(el, ${JSON.stringify(GERMAN)});
     return el.textContent.trim();

@@ -1,13 +1,13 @@
 {
   "extName": {
-    "message": "Shinkansen",
+    "message": "駅伝 Ekiden",
     "description": "拡張機能名"
   },
   "extDescription": {
-    "message": "ウェブページ・YouTube 字幕に対応した高速・スムーズな翻訳拡張機能。8 言語のターゲットと複数の AI エンジンに対応。データはブラウザから出ません。"
+    "message": "ウェブページと YouTube 字幕の翻訳拡張機能。Gemini、カスタム AI、DeepL、Microsoft、Google に対応。データは選んだサービスにだけ送信されます。"
   },
   "actionTitle": {
-    "message": "Shinkansen 翻訳",
+    "message": "Ekiden で翻訳",
     "description": "工具列圖示 tooltip（manifest action.default_title）"
   },
   "cmdTranslateMain": {

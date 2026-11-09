@@ -203,6 +203,57 @@ export async function upsertGoogleUsage(record, mergeWindowMs = 180000) {
 }
 
 /**
+ * [Ekiden fork] 以字元計費的機器翻譯紀錄（微軟 / DeepL / DeepLX / Chrome 內建翻譯等）。
+ * 合併規則比照 upsertGoogleUsage：同 url + engine + model 在 mergeWindowMs 內併成一筆，
+ * 避免一頁 20 個批次炸出 20 筆。紀錄帶 billingUnit: 'chars'，用量頁以字元數顯示。
+ * 呼叫端：shinkansen/fork/bg/（見 docs/FORK-NOTES.md §4）。
+ */
+export async function upsertCharUsage(record, mergeWindowMs = 180000) {
+  const url = record?.url;
+  if (!url || !record?.engine || !record?.model) {
+    return shouldSkipUsageRecord(record) ? null : logTranslation(record);
+  }
+  const now = record.timestamp || Date.now();
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const index = store.index('timestamp');
+    const range = IDBKeyRange.lowerBound(now - mergeWindowMs);
+    const req = index.openCursor(range, 'prev');
+    req.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        const v = cursor.value;
+        if (v.billingUnit === 'chars' && v.url === url && v.engine === record.engine && v.model === record.model) {
+          const merged = {
+            ...v,
+            chars:      (v.chars      || 0) + (record.chars      || 0),
+            segments:   (v.segments   || 0) + (record.segments   || 0),
+            cacheHits:  (v.cacheHits  || 0) + (record.cacheHits  || 0),
+            durationMs: (v.durationMs || 0) + (record.durationMs || 0),
+            timestamp: now,
+            title: record.title || v.title || '',
+          };
+          const putReq = cursor.update(merged);
+          putReq.onsuccess = () => resolve(v.id);
+          putReq.onerror = () => reject(putReq.error);
+          return;
+        }
+        cursor.continue();
+      } else if (shouldSkipUsageRecord(record)) {
+        resolve(null);
+      } else {
+        const addReq = store.add(record);
+        addReq.onsuccess = () => resolve(addReq.result);
+        addReq.onerror = () => reject(addReq.error);
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
  * 2026-09-11 code review §3.6-1：網頁翻譯成功批次由 background 逐批落地時的合併寫入。
  * 原本網頁翻譯只在 content 端整輪結束時發一筆 LOG_USAGE（整頁合計）——關分頁 / SPA
  * 導航 / 中途 throw 都讓前面已付費批次一筆不記。改由 background 在 cache.setBatch 後
@@ -402,7 +453,8 @@ export async function exportCSV({ from, to } = {}) {
   const records = await query({ from, to });
   // 按時間正序（CSV 慣例）
   records.reverse();
-  const header = '時間,網站標題,URL,模型,輸入 tokens,輸出 tokens,計費輸入 tokens,費用（USD）,段落數,本地快取命中,耗時（秒）';
+  // [Ekiden fork] 末尾加「字元數」欄（機器翻譯引擎以字元計；既有 11 欄順序不變）
+  const header = '時間,網站標題,URL,模型,輸入 tokens,輸出 tokens,計費輸入 tokens,費用（USD）,段落數,本地快取命中,耗時（秒）,字元數';
   const rows = records.map(r => {
     const time = new Date(r.timestamp).toLocaleString('zh-TW', { hour12: false });
     // CSV 欄位含逗號或引號時需要 escape
@@ -411,7 +463,7 @@ export async function exportCSV({ from, to } = {}) {
     const model = r.model || '';
     const duration = r.durationMs ? (r.durationMs / 1000).toFixed(1) : '';
     const cost = r.billedCostUSD ? r.billedCostUSD.toFixed(6) : '0';
-    return `${time},${title},${url},${model},${r.inputTokens || 0},${r.outputTokens || 0},${r.billedInputTokens || 0},${cost},${r.segments || 0},${r.cacheHits || 0},${duration}`;
+    return `${time},${title},${url},${model},${r.inputTokens || 0},${r.outputTokens || 0},${r.billedInputTokens || 0},${cost},${r.segments || 0},${r.cacheHits || 0},${duration},${r.chars || 0}`;
   });
   // 加 BOM 讓 Excel 正確辨識 UTF-8
   return '\uFEFF' + header + '\n' + rows.join('\n');
