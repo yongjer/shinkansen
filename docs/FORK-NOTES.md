@@ -5,7 +5,7 @@
 
 - 上游：[jimmysu0309/shinkansen](https://github.com/jimmysu0309/shinkansen)（Elastic License 2.0）
 - Fork 起點：上游 v2.6.4，commit `4ebf220`
-- 擴充功能新名稱：**暫名：＿＿＿**（待定，見 GAP-ANALYSIS §6）
+- 擴充功能新名稱：**驛傳 Ekiden**（2026-11-09 決定，見 GAP-ANALYSIS §6.1）
 
 ## 1. 授權
 
