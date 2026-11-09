@@ -7,12 +7,12 @@
        popup.css 的 body.runtime-ios（zoom）註解。桌面瀏覽器的 extension popup
        一律忽略 viewport meta，加了無副作用 -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shinkansen</title>
+  <title>Ekiden</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <header>
-    <h1><img src="../icons/icon-128.png" alt="" class="page-title-icon">Shinkansen<span class="update-dot" id="update-dot" hidden data-i18n-attr-title="popup.title.updateAvailable"></span></h1>
+    <h1><img src="../icons/icon-128.png" alt="" class="page-title-icon">Ekiden<span class="update-dot" id="update-dot" hidden data-i18n-attr-title="popup.title.updateAvailable"></span></h1>
     <a class="version" id="version" href="https://jimmysu0309.github.io/shinkansen/release-notes.html" target="_blank" rel="noopener"></a>
   </header>
 
@@ -148,6 +148,7 @@
   </footer>
 
   <script src="../lib/i18n.js"></script>
+  <script src="../fork/i18n/fork-i18n.js"></script><!-- [Ekiden fork] 品牌名稱與驛傳字串 -->
   <!-- shortcut-utils.js（UMD，window.__SKShortcuts）：popup 用 macifyCommandShortcut
        把 built-in 快速鍵字串在 Mac 上顯示成 ⌥S。普通 script 早於 popup.js module 載入。 -->
   <script src="../lib/shortcut-utils.js"></script>

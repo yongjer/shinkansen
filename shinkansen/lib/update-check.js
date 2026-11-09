@@ -23,8 +23,9 @@ import { browser } from './compat.js';
 import { debugLog } from './logger.js';
 import { IS_MAS_BUILD } from './distribution.js';
 
+// [Ekiden fork] 檢查 fork 自己的 Releases，不提示使用者去裝上游原版
 const GITHUB_RELEASES_URL =
-  'https://api.github.com/repos/jimmysu0309/shinkansen/releases/latest';
+  'https://api.github.com/repos/yongjer/shinkansen/releases/latest';
 const STORAGE_KEY = 'updateAvailable';
 // 上次真的打過 GitHub API 的時間（storage.local，跨 SW 冷啟）。與 updateAvailable 分開存：
 // up-to-date 時 updateAvailable 會被 remove，節流時間戳不能跟著消失。
@@ -167,7 +168,7 @@ export async function checkForUpdate() {
     debugLog('warn', 'update-check', 'response missing tag_name', {});
     return { checked: false, hasUpdate: false, error: 'missing tag_name' };
   }
-  const releaseUrl = json?.html_url || `https://github.com/jimmysu0309/shinkansen/releases/tag/${latestTag}`;
+  const releaseUrl = json?.html_url || `https://github.com/yongjer/shinkansen/releases/tag/${latestTag}`;
 
   // v1.6.4: 只對 major / minor 升級提示——patch 級小修不打擾使用者。
   if (isWorthNotifying(latestVersion, currentVersion)) {
@@ -222,12 +223,12 @@ export async function markUpdateNoticeShown() {
 export function buildUpdateDownloadUrl(updateAvailable, isSafari) {
   const version = updateAvailable?.version;
   if (isSafari && version) {
-    return `https://github.com/jimmysu0309/shinkansen/releases/download/v${version}/shinkansen-macos-v${version}.pkg`;
+    return `https://github.com/yongjer/shinkansen/releases/download/v${version}/shinkansen-macos-v${version}.pkg`;
   }
   return updateAvailable?.releaseUrl
     || (version
-      ? `https://github.com/jimmysu0309/shinkansen/releases/tag/v${version}`
-      : 'https://github.com/jimmysu0309/shinkansen/releases');
+      ? `https://github.com/yongjer/shinkansen/releases/tag/v${version}`
+      : 'https://github.com/yongjer/shinkansen/releases');
 }
 
 

@@ -1,13 +1,13 @@
 {
   "extName": {
-    "message": "Shinkansen",
+    "message": "Ekiden",
     "description": "Nombre de la extensión"
   },
   "extDescription": {
-    "message": "Traducción rápida y fluida de webs y subtítulos de YouTube. 8 idiomas, varios motores de IA. Datos locales."
+    "message": "Traduce webs y subtítulos de YouTube con Gemini, IA propia, DeepL, Microsoft o Google. Los datos solo van al servicio que elijas."
   },
   "actionTitle": {
-    "message": "Shinkansen Traducir",
+    "message": "Traducir con Ekiden",
     "description": "工具列圖示 tooltip（manifest action.default_title）"
   },
   "cmdTranslateMain": {

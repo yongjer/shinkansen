@@ -1,13 +1,13 @@
 {
   "extName": {
-    "message": "Shinkansen",
+    "message": "Ekiden",
     "description": "Name der Erweiterung"
   },
   "extDescription": {
-    "message": "Schnelle, flüssige Übersetzung für Webseiten und YouTube-Untertitel. 8 Zielsprachen, Daten bleiben im Browser."
+    "message": "Webseiten und YouTube-Untertitel übersetzen: Gemini, eigene KI, DeepL, Microsoft, Google. Daten nur an den gewählten Dienst."
   },
   "actionTitle": {
-    "message": "Shinkansen Übersetzen",
+    "message": "Mit Ekiden übersetzen",
     "description": "工具列圖示 tooltip（manifest action.default_title）"
   },
   "cmdTranslateMain": {

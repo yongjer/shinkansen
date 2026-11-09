@@ -29,6 +29,7 @@ import { saveToInstapaper, buildInstapaperPayload } from './lib/instapaper.js'; 
 import { planStreamingPartialReuse } from './lib/stream-reuse.js'; // v1.10.61: streaming 批次 missing-only 分流
 import { convertZhBatch, ZH_CONVERT_DIRECTIONS } from './lib/zh-convert.js'; // 簡繁本地互轉（OpenCC 字典，lazy load）
 import './lib/domain-utils.js'; // UMD 副作用載入（掛 globalThis.__SKDomain）：網域術語表 byDomain 比對走與白名單同一份規則
+import { initFork, forkRoutes } from './fork/bg/index.js'; // [Ekiden fork] 驛傳背景端入口（掛鉤清單見 docs/FORK-NOTES.md §4）
 
 // instapaper-keys.js（gitignored）的 consumer 金鑰載入。
 // 不能用 dynamic import()：MV3 service worker 禁止 dynamic import（實測 throw
@@ -882,7 +883,10 @@ const messageHandlers = {
   // v1.4.0: Google Translate 網頁翻譯（不需 API Key，快取 key 用 _gt 後綴）
   TRANSLATE_BATCH_GOOGLE: {
     async: true,
-    handler: (payload, sender) => handleTranslateGoogle(payload, sender, '_gt'),
+    // [Ekiden fork] payload.mtEngine 指定驛傳的其他機器翻譯引擎時改走 fork；沒指定時與上游相同
+    handler: (payload, sender) => (forkRoutes.isMtPayload(payload)
+      ? forkRoutes.mt(payload, sender)
+      : handleTranslateGoogle(payload, sender, '_gt')),
   },
   // W3：文件翻譯（translate-doc/index.js）專用批次。沿用 TRANSLATE_BATCH 流程，
   // cacheTag '_doc' 區隔 — 既有網頁翻譯（'') / 字幕（'_yt') / Google MT('_gt')
@@ -977,7 +981,11 @@ const messageHandlers = {
   // cache key 加 baseUrl hash + model 分區。
   TRANSLATE_BATCH_CUSTOM: {
     async: true,
-    handler: (payload, sender) => handleTranslateCustom(payload, sender, '_oc'),
+    // [Ekiden fork] modelOverride 'fork-cp:<id>' = 驛傳的額外 OpenAI 相容服務，換掉 customProvider 欄位後
+    // 仍走上游 handleTranslateCustom 同一條管線；其他情況與上游相同
+    handler: (payload, sender) => (forkRoutes.isProviderPayload(payload)
+      ? forkRoutes.provider(payload, sender)
+      : handleTranslateCustom(payload, sender, '_oc')),
   },
   // v1.5.8: 字幕用自訂模型，與網頁翻譯共用 customProvider 設定但 cache key 用 '_oc_yt'
   // 命名空間（同 '_yt' 對 Gemini、'_gt_yt' 對 Google MT 的字幕分區慣例）。
@@ -1386,6 +1394,9 @@ function errorFields(err) {
   }
   return fields;
 }
+
+// [Ekiden fork] 交給驛傳重用的內部函式（皆為 function declaration，hoisting 後此時已可用）
+initFork({ handleTranslateCustom, errorFields });
 
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const type = message?.type;

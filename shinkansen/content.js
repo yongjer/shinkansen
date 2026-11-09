@@ -2169,7 +2169,7 @@
   // <a> 連結（【N】/【/N】）與 atomic 元素（【*N】），其餘 span/b/i/abbr 直接取文字。
   // 相比 v1.4.1 的 serializeWithPlaceholders+⟦→【 轉換，本版大幅減少標記數量
   // （通常 2-4 個，而非 10+），Google MT 不再被過多標記搞亂位置。
-  SK.translateUnitsGoogle = async function translateUnitsGoogle(units, { onProgress, signal } = {}) {
+  SK.translateUnitsGoogle = async function translateUnitsGoogle(units, { onProgress, signal, mtEngine } = {}) {
     // Google MT 路徑無術語表:清掉前一輪(若有)的對照裁剪規則,避免跨引擎殘影
     SK.clearAnnotationDedupeRules?.();
     // ── 序列化：只標 <a> 連結與 atomic 元素（footnote sup 等），其餘取純文字 ──
@@ -2217,10 +2217,13 @@
       if (signal?.aborted) return;
       const batchIdx = job.idx; // v1.8.14: 取代 jobs.indexOf(job)
       try {
-        const response = await sendMessageWithTimeout({
+        // [Ekiden fork] mtEngine = 驛傳的機器翻譯引擎（未指定時與上游相同，只送 texts）；
+        // Chrome 內建翻譯在頁面內執行，由 forkInterceptMt 接手，其餘照常送背景
+        const _gtMsg = {
           type: 'TRANSLATE_BATCH_GOOGLE',
-          payload: { texts: job.texts },
-        }, BATCH_TIMEOUT_MS);
+          payload: { texts: job.texts, ...(mtEngine ? { mtEngine } : {}) },
+        };
+        const response = await (SK.forkInterceptMt?.(_gtMsg) || sendMessageWithTimeout(_gtMsg, BATCH_TIMEOUT_MS));
         if (!response?.ok) throw new Error(SK.i18n.bgErrorMessage(response) || SK.t('common.errorUnknown'));
         totalChars += response.usage?.chars || 0;
         totalCacheHits += response.usage?.cacheHits || 0;
@@ -2304,7 +2307,7 @@
       return SK.translateUnits(units, opts);
     }
     if (ctx.provider === 'google') {
-      const r = await SK.translateUnitsGoogle(units, opts);
+      const r = await SK.translateUnitsGoogle(units, { ...opts, mtEngine: ctx.mtEngine }); // [Ekiden fork] 沿用首翻引擎
       return { ...r, pageUsage: { cacheHits: r.cacheHits || 0 } };
     }
     // 簡繁自動互轉的 rescan:新內容只走本地轉換(convertOnly 保證不打 API)
@@ -2331,7 +2334,7 @@
   SK.replayTranslateByProvider = function replayTranslateByProvider() {
     const ctx = STATE.translationContext;
     if (!ctx) return SK.translatePage();
-    if (ctx.provider === 'google') return SK.translatePageGoogle();
+    if (ctx.provider === 'google') return SK.translatePageGoogle({ mtEngine: ctx.mtEngine }); // [Ekiden fork]
     // 防禦:convertOnly run 不設 sticky,理論上不會走到這;若意外到達,維持免費承諾
     if (ctx.provider === 'opencc-local') return SK.translatePage({ convertOnly: true });
     return SK.translatePage({
@@ -2401,6 +2404,8 @@
     // v1.4.12: gtOptions.slot 由 preset 快速鍵注入，供 STICKY_SET
     // v1.4.13: gtOptions.label 顯示於 loading toast
     const labelPrefix = gtOptions.label ? `[${gtOptions.label}] ` : '';
+    // [Ekiden fork] 改用其他機器翻譯引擎時帶 engine 參數，toast 改顯示實際引擎名稱（空字串 = 上游原字串）
+    const _gEngine = gtOptions.mtEngine ? (SK.forkMtName?.(gtOptions.mtEngine) || '') : '';
     // v2.0.79: 嵌入式播放器 frame 靜默結束（同 translatePage,見 issue #58）
     if (SK.isEmbeddedPlayerFrame?.(document, window)) {
       SK.sendLog('info', 'translate', 'embedded player frame, skip translate (google)', { url: location.href });
@@ -2519,7 +2524,7 @@
     }
     const total = units.length;
 
-    SK.showToast('loading', SK.t('toast.translateProgressGoogle', { prefix: labelPrefix, done: 0, total }), { progress: 0, startTimer: true });
+    SK.showToast('loading', SK.t('toast.translateProgressGoogle', { prefix: labelPrefix, done: 0, total, engine: _gEngine }), { progress: 0, startTimer: true });
 
     // v1.9.28:onProgress race guard,同 translatePage 修法
     let _progressClosed = false;
@@ -2527,9 +2532,10 @@
     try {
       const { done, failures, chars } = await SK.translateUnitsGoogle(units, {
         signal: abortSignal,
+        mtEngine: gtOptions.mtEngine, // [Ekiden fork]
         onProgress: (d, t) => {
           if (_progressClosed) return;
-          SK.showToast('loading', SK.t('toast.translateProgressGoogle', { prefix: labelPrefix, done: d, total: t }), {
+          SK.showToast('loading', SK.t('toast.translateProgressGoogle', { prefix: labelPrefix, done: d, total: t, engine: _gEngine }), {
             progress: d / t,
           });
         },
@@ -2566,7 +2572,7 @@
       if (STATE.translatedMode === 'single') SK.applyDocTargetLang?.();
       STATE.translatedBy = 'google';  // v1.4.0
       // 同 Gemini 路徑記錄 provider context 供 rescan / SPA nav replay。Google MT 無 model / glossary 參數。
-      STATE.translationContext = { provider: 'google' };
+      STATE.translationContext = { provider: 'google', ...(gtOptions.mtEngine ? { mtEngine: gtOptions.mtEngine } : {}) }; // [Ekiden fork] 記住引擎供 rescan
       STATE.stickyTranslate = true;
       STATE.stickySlot = gtOptions.slot ?? null;  // v1.4.12
       // v1.4.11 跨 tab sticky（v1.4.12 改存 preset slot）：opener 鏈中新開的 tab 繼承同 slot
@@ -2576,8 +2582,8 @@
 
       if (!failures.length) {
         const successMsg = truncatedCount > 0
-          ? SK.t('toast.googleDoneTruncated', { total, truncated: truncatedCount })
-          : SK.t('toast.googleDone', { total });
+          ? SK.t('toast.googleDoneTruncated', { total, truncated: truncatedCount, engine: _gEngine })
+          : SK.t('toast.googleDone', { total, engine: _gEngine });
         // v1.6.1: 同 Gemini 路徑 — 成功 toast 順帶顯示「有新版可下載」
         // v1.6.5: 同時帶 welcome notice
         const updateNotice = await SK.maybeBuildUpdateNotice();
@@ -2585,7 +2591,7 @@
         SK.showToast('success', successMsg, {
           progress: 1,
           stopTimer: true,
-          detail: SK.t('toast.googleFreeDetail', { chars: chars.toLocaleString() }),
+          detail: SK.t('toast.googleFreeDetail', { chars: chars.toLocaleString(), engine: _gEngine }),
           updateNotice,
           welcomeNotice,
         });
@@ -2942,12 +2948,15 @@
       SK.sendLog('warn', 'translate', 'preset not found for slot', { slot });
       return;
     }
+    // [Ekiden fork] 這組預設在驛傳設定頁改用的引擎（沒設定 = {}，行為與上游相同）
+    const forkSel = (await SK.forkResolvePreset?.(slot, preset.engine)) || {};
     if (preset.engine === 'google') {
-      SK.translatePageGoogle({ slot, label: preset.label || null, overConverted });
+      SK.translatePageGoogle({ slot, label: preset.label || null, overConverted, mtEngine: forkSel.mtEngine });
     } else if (preset.engine === 'openai-compat') {
       // v1.5.7: 自訂 OpenAI-compatible Provider。model / baseUrl / API Key 全部從
       // settings.customProvider 拿（preset.model 略過），preset 只決定 engine + label。
-      SK.translatePage({ engine: 'openai-compat', slot, label: preset.label || null, overConverted });
+      // [Ekiden fork] modelOverride 'fork-cp:<id>' = 改用驛傳的額外 OpenAI 相容服務
+      SK.translatePage({ engine: 'openai-compat', slot, label: preset.label || null, overConverted, modelOverride: forkSel.modelOverride });
     } else {
       SK.translatePage({ modelOverride: preset.model || null, slot, label: preset.label || null, overConverted });
     }

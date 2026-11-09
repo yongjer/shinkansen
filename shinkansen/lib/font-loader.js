@@ -18,7 +18,9 @@ export const FONT_CACHE_NAME = 'sk-cjk-fonts-v1';
 
 // 可被 spec 覆寫（page.route 攔 URL、改 sha 驗 fallback 路徑）；production 不動
 export const FONT_CONFIG = {
-  baseUrl: 'https://jimmysu0309.github.io/shinkansen/fonts/',
+  // [Ekiden fork] 改由 fork 自己的 repo 提供（釘死 commit，內容不可變；下載後仍比對 SHA-256）。
+  // 不用 GitHub Pages：fork 開 Pages 會把上游的官網 docs/index.html 一併以 fork 名義發布。
+  baseUrl: 'https://raw.githubusercontent.com/yongjer/shinkansen/4ebf2200e69b1d2b961c9a04900ee77192e42d6b/docs/fonts/',
   fonts: {
     'zh-CN': {
       regular: { file: 'NotoSansSC-Regular.ttf', bytes: 10540376, sha256: 'a0ecca1c67a4da5a89857703b84a44eba9fce7d7b5941bf4285e8c0a8346cf60' },

@@ -7,7 +7,7 @@
        popup 已加，options 漏了）。桌面瀏覽器分頁一律忽略 viewport meta，加了
        無副作用。窄版排版調整見 options.css 末段 media query -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title data-i18n="options.pageTitle">Shinkansen 設定</title>
+  <title data-i18n="options.pageTitle">Ekiden 設定</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
@@ -17,7 +17,7 @@
   <div class="container">
     <!-- iOS / iPadOS 上架提示:整顆可點,連到 App Store(無 country 前綴讓 Apple 依
          使用者地區導向)。iOS build 本身不顯示(options.js 依 IS_IOS_BUILD gate) -->
-    <h1><img src="../icons/icon-128.png" alt="" class="page-title-icon">Shinkansen<a id="ios-promo" class="ios-promo" href="https://apps.apple.com/app/id6776958298" target="_blank" rel="noopener" data-i18n="options.iosPromo.badge" hidden>📱 iOS／iPadOS 版已上架 · 前往 App Store</a></h1>
+    <h1><img src="../icons/icon-128.png" alt="" class="page-title-icon">Ekiden<a id="ios-promo" class="ios-promo" href="https://apps.apple.com/app/id6776958298" target="_blank" rel="noopener" data-i18n="options.iosPromo.badge" hidden>📱 iOS／iPadOS 版已上架 · 前往 App Store</a></h1>
     <p class="muted" data-i18n-html="options.intro.html"><a href="https://jimmysu0309.github.io/shinkansen/" target="_blank" rel="noopener">專案主頁</a>，功能介紹與使用說明請參考 <a href="https://github.com/jimmysu0309/shinkansen#readme" target="_blank" rel="noopener">README</a> · <a href="https://jimmysu0309.github.io/shinkansen/release-notes.html" target="_blank" rel="noopener">更新紀錄</a> · <a href="https://jimmysu0309.github.io/shinkansen/privacy-policy.html" target="_blank" rel="noopener">隱私政策</a> · <span id="options-version" class="options-version"></span></p>
 
     <!-- v0.86: Tab 切換列 -->
@@ -1252,6 +1252,7 @@
 
   <script src="../lib/vendor/chart.min.js"></script>
   <script src="../lib/i18n.js"></script>
+  <script src="../fork/i18n/fork-i18n.js"></script><!-- [Ekiden fork] 品牌名稱與驛傳字串 -->
   <script src="../lib/shortcut-utils.js"></script>
   <script src="../lib/domain-utils.js"></script>
   <!-- instapaper-keys.js（gitignored，consumer 金鑰）：classic script 早於 options.js

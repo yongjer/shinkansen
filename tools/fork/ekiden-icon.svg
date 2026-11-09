@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- 驛傳 Ekiden 圖示：深藍底 + 斜掛的接力襷（たすき）。原創圖形，不沿用上游圖示 -->
+  <defs>
+    <clipPath id="r"><rect x="0" y="0" width="128" height="128" rx="28"/></clipPath>
+  </defs>
+  <g clip-path="url(#r)">
+    <rect x="0" y="0" width="128" height="128" fill="#1F2A44"/>
+    <g transform="rotate(-45 64 64)">
+      <rect x="-40" y="47" width="208" height="34" fill="#E8483B"/>
+      <rect x="-40" y="42" width="208" height="5" fill="#F4E9D8"/>
+      <rect x="-40" y="81" width="208" height="5" fill="#F4E9D8"/>
+    </g>
+    <circle cx="35" cy="93" r="11" fill="#F4E9D8"/>
+    <circle cx="35" cy="93" r="5" fill="#E8483B"/>
+  </g>
+</svg>
