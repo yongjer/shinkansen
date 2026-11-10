@@ -2,7 +2,7 @@
 //
 // background.js 只做三件事（掛鉤點記錄在 docs/FORK-NOTES.md §4）：
 //   1. import 本檔
-//   2. 呼叫 initFork({ handleTranslateCustom, errorFields }) 交出需要重用的內部函式
+//   2. 呼叫 initFork({ handleTranslateCustom, errorFields, buildFixedGlossaryEntries }) 交出需要重用的內部函式
 //   3. TRANSLATE_BATCH_GOOGLE / TRANSLATE_BATCH_CUSTOM 兩個 handler 先問 forkRoutes 要不要接手
 //
 // 驛傳自己的訊息一律用 'FORK_' 前綴，由本檔註冊的 runtime.onMessage listener 處理；
@@ -18,10 +18,12 @@ import { codedError } from '../../lib/bg-error.js';
 import { createEngineRegistry, ENGINE_META, isMtEngineId } from '../engines/registry.js';
 import { createMtBatchHandler } from './mt-batch.js';
 import { createProviderBatchHandler, isForkProviderPayload } from './providers.js';
+import { createStudyHandlers, setupContextMenus, onContextMenuClicked } from './study.js';
 import {
   FORK_SYNC_KEY, FORK_SECRETS_KEY, FORK_PROVIDER_PROMPTS_KEY,
   mergeForkSettings, sanitizeSecrets, sanitizeProviderPrompts,
 } from '../settings/schema.js';
+import { TARGET_LANGS } from '../engines/lang.js';
 
 let internals = null;
 
@@ -33,7 +35,12 @@ let secretsCache = null;
 let promptsCache = null;
 try {
   browser.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync' && FORK_SYNC_KEY in changes) forkCache = null;
+    if (area === 'sync' && FORK_SYNC_KEY in changes) {
+      forkCache = null;
+      const before = mergeForkSettings(changes[FORK_SYNC_KEY].oldValue).study.contextMenu;
+      const after = mergeForkSettings(changes[FORK_SYNC_KEY].newValue).study.contextMenu;
+      if (before !== after) setupContextMenus(after).catch(() => {});
+    }
     if (area === 'local' && FORK_SECRETS_KEY in changes) secretsCache = null;
     if (area === 'local' && FORK_PROVIDER_PROMPTS_KEY in changes) promptsCache = null;
   });
@@ -98,8 +105,10 @@ export function initFork(deps) {
 }
 
 // 上游 handler 的分流判斷（background.js 掛鉤用）
+// payload.forkTarget（劃詞卡片的雙向翻譯）只有驛傳的機器翻譯路徑支援，所以帶了它的 Google 請求也走 fork
 export const forkRoutes = {
-  isMtPayload: (payload) => isMtEngineId(payload?.mtEngine) && payload.mtEngine !== 'google',
+  isMtPayload: (payload) => isMtEngineId(payload?.mtEngine)
+    && (payload.mtEngine !== 'google' || TARGET_LANGS.includes(payload?.forkTarget)),
   mt: (payload, sender) => handleMtBatch(payload, sender),
   isProviderPayload: (payload) => isForkProviderPayload(payload),
   provider: (payload, sender) => {
@@ -111,7 +120,10 @@ export const forkRoutes = {
 // ── 驛傳自有訊息 ──────────────────────────────────────────
 const SAMPLE_TEXT = 'Hello, world. This is a test of the translation service.';
 
+const studyHandlers = createStudyHandlers({ readFork, getInternals: () => internals, log });
+
 const forkHandlers = {
+  ...studyHandlers,
   // 設定頁「測試」按鈕：用指定引擎翻譯一句範例文字（不寫快取、不記用量）
   async FORK_TEST_ENGINE(payload) {
     const engine = payload?.engine;
@@ -165,6 +177,14 @@ function errorFieldsOf(err) {
   }
   return fields;
 }
+
+// 右鍵選單：安裝 / 更新與瀏覽器啟動時重建（Firefox 的選單不會跨背景頁重啟保留）
+try {
+  const rebuildMenus = () => readFork().then((f) => setupContextMenus(f.study.contextMenu)).catch(() => {});
+  browser.runtime.onInstalled.addListener(rebuildMenus);
+  browser.runtime.onStartup.addListener(rebuildMenus);
+  (browser.contextMenus || browser.menus)?.onClicked.addListener(onContextMenuClicked);
+} catch { /* 測試環境沒有這些 API */ }
 
 try {
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {

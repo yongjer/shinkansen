@@ -22,6 +22,7 @@
 | 2026-11-09 | FluentRead（GPL-3.0，[FluentRead/FluentRead](https://github.com/FluentRead/FluentRead)） | 1. `README.md`：透過 GitHub contents API 只下載這一個檔案。API 的根目錄清單會順帶顯示根目錄檔名，但沒有開啟其他任何檔案。<br>2. 使用指南 [read.thinkstu.com/en/](https://read.thinkstu.com/en/) 的 35 頁（清單見 GAP-ANALYSIS §1），轉成純文字後閱讀 | 任何原始碼、設定檔、樣式表、測試、`src/` 等目錄 |
 | 2026-11-09 | Read Frog（[mengxi-ream/read-frog](https://github.com/mengxi-ream/read-frog)） | 沒有讀（只在 FluentRead 的 README 看到連結） | 全部 |
 | 2026-11-09 | MangoTL | 沒有讀 | 全部 |
+| 2026-11-10 | FluentRead | 第 2 階段沒有再讀任何東西，劃詞卡片、AI 閱讀卡、段落工具的行為依第 0 階段讀過的使用指南（GAP-ANALYSIS S1–S11、W6–W8、W18） | 全部原始碼 |
 
 往後各階段若需要再查 FluentRead 的行為，**只能讀使用指南與截圖**，並在上表新增一列。
 
@@ -116,6 +117,8 @@
   - LICENSE 與上游逐位元組相同。
   - 8 種語言的 fork 字串 key 一致。
   - 品牌改名不動到授權區塊。
+  - manifest 的 `permissions` 完整清單（第 2 階段起：上游 3 個 + `contextMenus`）與 content script 載入順序。
+- e2e 不連外：Gemini 請求在 service worker 裡覆寫 `self.fetch` 攔截（`fork-tests/e2e/ekiden-study.spec.mjs`），回固定的 WAV 與 JSON；機器翻譯用 fixtures 的本機 DeepLX。
 
 ## 4. 上游核心檔的掛鉤清單
 
@@ -149,8 +152,16 @@
 | 1 | `test/jest-unit/i18n-key-references.test.cjs` | 掃描目錄 | 跳過 `shinkansen/fork/` | fork 字串不在 `lib/i18n.js`；等價檢查改在 `fork-tests/unit/guards.test.mjs` |
 | 1 | `test/regression/inject-wrong-language-guard.spec.js` | 第一個測試 | 「設定 `STATE.targetLanguage = 'de'`」與「注入」從兩次 evaluate 合併成同一段同步程式碼 | 測試本身的競速，詳見下方說明 |
 | 1 | `package.json` | `scripts` | 加 `test:fork`、`test:fork:e2e` | fork 測試指令 |
+| 2 | `shinkansen/background.js` | `initFork(...)` 呼叫 | 多交一個 `buildFixedGlossaryEntries` | AI 閱讀卡的固定術語表與整頁翻譯用同一個產生器（含網域規則） |
+| 2 | `shinkansen/content.js` | `restoreInjectedDom` 結尾（`return detached;` 前） | `SK.forkAfterRestorePage?.()` | 整頁還原時，清掉「還原單一段落」加的 `translate="no"` 標記 |
+| 2 | `shinkansen/content-spa.js` | `resetForSpaNavigation`，`STATE.originalFontFamily?.clear?.()` 之後 | 同上 | SPA 換頁時清掉同一組標記 |
+| 2 | `shinkansen/content-hover.js` | `schedule()` | 停留時間改讀 `SK.forkHoverRestMs()`；函式不存在時仍用原本的 `REST_MS`（150 ms） | 懸停翻譯的停留時間可調（GAP W6）；預設值不變 |
+| 2 | `shinkansen/manifest.json` | `permissions`；主 content script 清單 | ① 加 `contextMenus`（安裝時不會跳出權限警告）② 清單末尾改成 `fork/i18n/fork-strings.js`、`fork/i18n/study-strings.js`、`fork/content/ekiden-content.js`、`fork/content/paragraph-tools.js`、`fork/content/study-card.js`；版號 `2.6.402` | 右鍵選單；劃詞卡片與段落工具 |
+| 2 | `shinkansen/_locales/*/messages.json`（8 種） | 檔尾 | 新增 `ctxTranslateSelection`、`ctxTranslatePage`、`ctxRestoreParagraph`（只加不改） | 右鍵選單文字（`contextMenus` 只能用 `chrome.i18n`） |
 
-上游的 `DEFAULT_SETTINGS`、`lib/i18n.js`、`lib/google-translate.js`、`lib/storage.js` 都沒有修改。預計的掛鉤點見 ARCHITECTURE-SUMMARY §10。
+上游的 `DEFAULT_SETTINGS`、`lib/i18n.js`、`lib/google-translate.js`、`lib/storage.js` 都沒有修改（第 2 階段仍然如此）。預計的掛鉤點見 ARCHITECTURE-SUMMARY §10。
+
+第 2 階段的劃詞卡片翻譯**沒有新增翻譯管線**：content 端直接送上游既有的 `TRANSLATE_BATCH` / `TRANSLATE_BATCH_GOOGLE` / `TRANSLATE_BATCH_CUSTOM`，與整頁翻譯共用快取、術語表、禁用詞與用量紀錄。唯一的延伸是 `TRANSLATE_BATCH_GOOGLE` payload 可帶 `forkTarget`（雙向翻譯的目標語言），只有驛傳的機器翻譯路徑認得；帶了它的 Google 請求也改走驛傳路徑（`forkRoutes.isMtPayload`），沒帶時與上游完全相同。
 
 **`inject-wrong-language-guard` 的競速**（第 1 階段調查）
 
@@ -227,6 +238,42 @@ git push origin main
 | Google Drive | `accounts.google.com`（授權）、`www.googleapis.com`（應用程式資料夾） | 按「連結 Google Drive」並同意後才會用到；`identity` 權限也是那時才要求 | 備份檔 |
 | PDF 字型 | `raw.githubusercontent.com` | 翻譯 PDF 並需要 CJK 字型 | 不送內容 |
 | 新版檢查 | `api.github.com/repos/yongjer/shinkansen` | 與上游相同的檢查頻率 | 不送內容 |
+| Gemini TTS（第 2 階段） | `generativelanguage.googleapis.com`（上游已在用的主機），`/v1beta/interactions` | 劃詞卡片按「朗讀 / 慢速」、設定頁按「試聽」，且有 Gemini 金鑰（語音來源是「自動」或「Gemini」） | 要唸的文字（套用自訂讀音表後）、語速指示；`store: false`（不讓伺服器保存互動紀錄）；金鑰放 `x-goog-api-key` header |
+| AI 閱讀卡（第 2 階段） | 同上，`/v1beta/models/<模型>:generateContent` | 劃詞卡片按「AI 解釋」、追問、重新產生 | 選取的文字、所在段落（可設成前後各一段或不附）、網頁標題、偵測到的語言、固定術語表與禁用詞；**不送網址** |
 
 - 免費引擎備援鏈的前一家失敗時，同一段文字會再送到下一家。設定頁有說明，使用者可以關掉其中任何一家。
 - 備份檔預設不含任何金鑰。勾選「包含 API Key」後，金鑰會以使用者自訂的密語加密（AES-GCM，密鑰由 PBKDF2-SHA256 310,000 次推導）。WebDAV 密碼永遠不進備份。
+
+## 6. 第 2 階段設計備忘
+
+### 6.1 自訂讀音（R-12）
+
+- Gemini 3.8 TTS 的官方文件（speech-generation 指南、模型頁、`llms-full.txt`，2026-11-09 查閱）**沒有**提到 `/IPA/` 語法。開發者指南是 JavaScript 渲染的頁面，抓不到。
+- 本階段沒有可用的 Gemini 金鑰，**沒有實測**。所以讀音表兩種寫法都做：
+  - **IPA**：照規格寫成 `/IPA/` 放回原位。
+  - **拼讀**（respelling，例如 `toe-MAH-toe`）：直接取代原詞。官方文件說 3.8 TTS 會把輸入當逐字稿照唸，所以這種寫法一定有效。
+- 設定頁每一列都有「試聽」，IPA 效果不理想時使用者可以當場改成拼讀。瀏覽器內建語音不認 IPA，只套用拼讀。
+- 之後有金鑰實測時，結果記在這裡。
+
+### 6.2 朗讀
+
+- 語速、語氣只放在 `speech_metadata.style`，`text` 只有逐字稿（3.8 TTS 會把 `text` 全部唸出來）。頁面文字裡像 `<short pause>` 的片段先拿掉，避免被當成行內標籤。
+- 回應是含 RIFF header 的 WAV，直接用 Web Audio（`decodeAudioData`）播放，不另外包 header。不用 `<audio>`，所以不受網頁的 `media-src` CSP 限制。
+- 快取：背景端 IndexedDB `ekiden-tts`，最近 20 段（LRU）。key 是模型、聲音、播放模式、實際送出文字的 SHA-256。淘汰時用 `t` 索引的 key cursor 只讀時間戳，不把音訊載入記憶體。卡片上的「重播」直接播已解碼的音訊，連訊息都不送。
+- 沒有金鑰時退回 `speechSynthesis`（慢速 = `rate 0.65`）。
+
+### 6.3 劃詞卡片
+
+- 卡片放在 closed Shadow DOM，掛在 `<html>` 底下而不是 `<body>`，避免上游的段落偵測掃到它。
+- 語言判斷：選取的文字通常很短，CLD（`i18n.detectLanguage`）常猜錯（e2e 中曾把 "relay race" 判成塞爾維亞文）。現在先看字元（假名 → 日文、諺文 → 韓文、只有漢字時依所在元素的 `lang` 與繁簡字形），其他文字以所在元素或整頁的 `lang` 為準；CLD 只在結果與提示相符，或文字夠長且有把握時採用。
+- 雙向翻譯只支援機器翻譯引擎：Gemini 與自訂模型的系統提示寫死目標語言（上游 `getEffectiveSystemPrompt`），要支援得改上游 prompt 組裝，留到之後評估。
+- 右鍵選單文字只能用 `chrome.i18n`（`_locales`），跟隨瀏覽器語言，不跟隨上游的介面語言設定。
+
+### 6.4 還原單一段落
+
+- 上游只有整頁還原。`fork/content/paragraph-tools.js` 依上游三種注入方式（single 覆寫、dual 雙語 wrapper、framework 段落的 `nodeValue` 改寫）各自的簿記只還原一個元素，並把它從 Content Guard 與 SPA 重用表移除，免得被自動補回。
+- 還原後的元素加上 `translate="no"`（上游偵測層會跳過），SPA 重新掃描時不會再翻。整頁還原或 SPA 換頁時由 §4 的兩個掛鉤清掉。
+
+### 6.5 學習中心（資料層）
+
+- 第 2 階段只做「加入」：IndexedDB `ekiden-learn`，只留在本機，不同步、不上傳。同一段文字（不分大小寫、空白正規化）再次加入時更新同一筆。瀏覽、複習、匯出在第 3 階段。

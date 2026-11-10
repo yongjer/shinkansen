@@ -868,7 +868,8 @@ iOS Safari 背景 event page 掛起的續命處理（長批次翻譯期間保持
   2. 機器翻譯引擎（§18.4）
   3. 免費引擎備援（§18.5）
   4. 額外的 OpenAI 相容服務（§18.6）
-  5. 備份與同步（§18.7）
+  5. 劃詞卡片：觸發方式、翻譯引擎、朗讀、自訂讀音、AI 閱讀卡、段落工具（§18.10–§18.14）
+  6. 備份與同步（§18.7）
 - **介面語言**：8 種介面語言都有翻譯，跟隨上游的介面語言設定，切換後立即更新。
 
 ### 18.3 翻譯預設改用其他引擎
@@ -942,7 +943,7 @@ iOS Safari 背景 event page 掛起的續命處理（長批次翻譯期間保持
   - Google Drive：選用
 - **備份內容**：
   - 上游所有同步設定，加上本機的術語表與禁用詞。
-  - 驛傳設定，以及額外服務的 system prompt。
+  - 驛傳設定，以及額外服務的 system prompt、自訂讀音表、AI 閱讀卡的自訂指示。
   - 檔名 `ekiden-backup.json`。
 - **金鑰**：
   - **預設不含任何金鑰**，包括 Gemini API Key、Instapaper 授權，以及驛傳的所有金鑰。
@@ -991,11 +992,76 @@ iOS Safari 背景 event page 掛起的續命處理（長批次翻譯期間保持
 |---|---|---|
 | `optional_permissions` | 新增 `identity`（選用，不在安裝時要求） | Google Drive 備份 |
 | `host_permissions` | 新增 `api.deepl.com`、`api-free.deepl.com`、`edge.microsoft.com`、`api-edge.cognitive.microsofttranslator.com`、`api.cognitive.microsofttranslator.com`、`www.googleapis.com` | 新引擎與 Google Drive 的端點。上游已有 `<all_urls>`，這幾行是為了把實際連線的主機寫清楚，不增加實際權限範圍 |
-| `content_scripts` | 主清單末尾加 `fork/i18n/fork-strings.js`、`fork/content/ekiden-content.js` | 預設的引擎對應、Chrome 內建翻譯、toast 字串 |
+| `content_scripts` | 主清單末尾加 `fork/i18n/fork-strings.js`、`fork/i18n/study-strings.js`、`fork/content/ekiden-content.js`、`fork/content/paragraph-tools.js`、`fork/content/study-card.js` | 預設的引擎對應、Chrome 內建翻譯、toast 字串；劃詞卡片與段落工具（第 2 階段） |
+| `permissions` | 新增 `contextMenus`（第 2 階段） | 右鍵選單（§18.10）。Chrome 安裝與更新時不會因為這個權限跳出警告 |
 
 上游的權限一項都沒有移除。驛傳會連到哪些服務、什麼時候連，見 `docs/FORK-NOTES.md` §5.3。
 
-### 18.10 已知限制
+### 18.10 劃詞卡片
+
+- **內容**：選取的原文、譯文、工具列（朗讀、慢速、重播、複製、加入學習中心、AI 解釋；選取範圍在已翻譯的段落時多一個「還原段落」）、狀態列。標題列顯示「來源語言 → 目標語言」。
+- **觸發方式**（`fork.study.trigger`，預設「選取文字」）：
+
+  | 設定 | 行為 |
+  |---|---|
+  | 選取文字 | 放開滑鼠後，選取範圍旁出現小按鈕，點了才開卡片（`selectMode: 'icon'`，預設）；也可以設成直接開卡片 |
+  | 雙擊 | 雙擊一個詞 |
+  | 長按 | 在文字上按住不動（預設 500 毫秒，250–2000） |
+  | 滑鼠中鍵 | 在選取範圍或文字上按中鍵；在連結上沒有選取範圍時照常開新分頁 |
+  | 按住按鍵拖曳 | 按住 Alt / Shift / Ctrl 拖曳選取。與懸停翻譯用同一個按鍵時兩者會同時作用，設定頁有提示 |
+  | 不自動出現 | 只能從右鍵選單開 |
+
+  輸入框、可編輯區域裡的選取不會觸發。Esc、點卡片外面、捲動（小按鈕）會關閉。
+- **翻譯引擎**（`fork.study.engine`）：預設跟主要預設（Alt+S，slot 2）相同，也可以指定 Gemini、上游自訂模型、任一個機器翻譯引擎或額外的 OpenAI 相容服務。**不另寫翻譯管線**：直接送上游既有的翻譯訊息，與整頁翻譯共用快取、術語表、禁用詞與用量紀錄。選取的文字只送到這裡選的服務。
+- **雙向翻譯**（`fork.study.bidirectional`，預設關）：選取的文字已經是目標語言時，改翻成 `secondLang`（預設英文）。只支援機器翻譯引擎（Chrome 內建翻譯除外）。
+- **語言判斷**：先看字元（假名、諺文、漢字），其他文字以所在元素或整頁的 `lang` 屬性為準；`i18n.detectLanguage` 只在結果與提示相符，或文字夠長且有把握時採用（短字串常被誤判）。
+- **右鍵選單**（`fork.study.contextMenu`，預設開）：「翻譯選取文字」（開卡片）、「翻譯整頁 / 顯示原文」（與 Alt+S 同一條路徑）、「還原這一段」。選單文字跟隨瀏覽器語言。
+- **介面**：closed Shadow DOM，掛在 `<html>` 底下；支援深色模式。在追問輸入框打字時，按鍵不會冒泡到網頁，也不會觸發段落複製快速鍵。
+
+### 18.11 朗讀
+
+- **引擎**（`fork.tts.engine`）：
+  - `auto`（預設）：有 Gemini 金鑰用 Gemini 3.8 TTS，沒有就用瀏覽器內建語音（`speechSynthesis`）。
+  - `gemini`：只用 Gemini，沒有金鑰時顯示錯誤。
+  - `browser`：只用瀏覽器內建語音，不連任何服務。
+- **模型**（`fork.tts.model`）：預設 `gemini-3.8-flash-lite-tts`，可切換成 `gemini-3.8-flash-tts`。選項由計價表（§18.8）中 `kind: 'tts'` 的模型產生，設定頁顯示價格。聲音（`fork.tts.voice`）從官方 30 個預設聲音選，預設 Kore。
+- **請求**：Interactions API（`POST /v1beta/interactions`），金鑰放 `x-goog-api-key` header，`store: false`。語速與語氣只放在 `speech_metadata.style`，`text` 只有要唸的文字（3.8 TTS 會把 `text` 全部唸出來）。一次最多 1,500 字。
+- **三種播放**：
+  - 正常速度。
+  - 慢速清楚咬字：style 要求放慢、每個音節咬字清楚；瀏覽器語音用 `rate 0.65`。
+  - 重播：直接播放卡片上一次的音訊，**不送任何請求**。
+- **音訊**：回應是含 RIFF header 的 WAV，用 Web Audio 直接播放，不另外包 header，也不受網頁的 `media-src` CSP 限制。
+- **快取**：本機 IndexedDB 保留最近 20 段（LRU）。模型、聲音、播放模式、實際送出的文字都相同時直接使用，不發請求。設定頁可以清除。
+- **用量**：寫進用量紀錄（來源 `tts`），費用依計價表的多模態價格計算。
+- **自訂讀音表**（存在 `storage.local` 的 `forkPronunciations`，最多 200 筆）：
+  - 每一筆：詞、寫法（IPA 或拼讀）、讀音。朗讀前把詞換成讀音：IPA 寫成 `/IPA/` 放回原位；拼讀（例如 `toe-MAH-toe`）直接取代原詞。
+  - 比對不分大小寫、長的詞優先；拉丁字母的詞只比對整詞，中日韓文字比對子字串。
+  - **IPA 寫法未經官方文件確認**（GAP-ANALYSIS R-12、FORK-NOTES §6.1），設定頁每一列都有「試聽」；效果不理想時改用拼讀。瀏覽器內建語音只套用拼讀。
+
+### 18.12 AI 閱讀卡
+
+- **內容**：譯文、詞義、讀音（IPA；中文為帶聲調拼音、日文為假名與高低重音、韓文為羅馬拼音）與重音說明、句子結構、用法、2–3 個例句（可朗讀），以及從所在段落引用的原文。
+- **句子結構**：選取的文字切成 2–8 個連續片段，每段有語法標籤與說明。片段可用方向鍵切換。模型回傳的片段不在選取文字裡時丟掉；JSON 解析失敗時顯示模型的原始文字。
+- **引用**：只保留確實出現在上下文裡的句子。點擊後捲到原文並標示（CSS Highlight API；不支援時改用選取）。
+- **上下文**（`fork.explain.contextScope`）：所在段落（預設）、所在段落與前後各一段、不附上下文。另外附網頁標題與偵測到的語言，**不送網址**。
+- **追問**：沿用同一組選取文字與上下文，保留最近 8 輪。可以「重新產生」整張卡片。
+- **術語表與禁用詞**：system prompt 的尾段由上游 `buildEffectiveSystemInstruction` 產生，與整頁翻譯同一套規則（含固定術語表的網域規則）。
+- **自訂指示**（`storage.local` 的 `forkExplainPrompt`，最多 2,000 字）：附加在閱讀卡指示後面，不能改掉 JSON 格式。
+- **模型**（`fork.explain.model`）：空白時沿用 Gemini 主設定的模型。請求用 `generateContent` 與 `responseMimeType: application/json`，金鑰放 header；沿用 Gemini 主設定的服務層級。用量寫進用量紀錄（來源 `explain` / `explain-followup`）。
+
+### 18.13 段落工具
+
+- **還原單一段落**：整頁翻譯後，只把一段改回原文，其他段落維持譯文。入口：劃詞卡片的「還原段落」、右鍵選單「還原這一段」。還原的段落之後 SPA 重新掃描也不會再翻；整頁還原或換頁後恢復正常。
+- **複製段落譯文**（`fork.paragraph.copyShortcut`，預設 Alt+C）：游標停在段落上按快速鍵，複製該段譯文；沒翻譯過就複製原文。必須包含 Alt、Ctrl 或 ⌘；在輸入框裡不作用；與上游自訂翻譯快速鍵相同時以上游為準。可以關閉。
+- **懸停翻譯的停留時間**（`fork.paragraph.hoverRestMs`，0–2000 毫秒）：預設 150，與上游相同。
+
+### 18.14 學習中心（資料層）
+
+- 劃詞卡片的「加入學習中心」把選取的文字、譯文、語言、上下文、網頁標題與網址、AI 閱讀卡（若已產生）存進本機 IndexedDB（`ekiden-learn`）。不同步、不上傳，也不進設定備份。
+- 同一段文字（不分大小寫、空白正規化）再次加入時更新同一筆，不重複。
+- 瀏覽、複習、匯出在第 3 階段加入；本階段設定頁只顯示筆數。
+
+### 18.15 已知限制
 
 - YouTube / X 字幕翻譯、文件翻譯、術語表擷取仍使用上游的引擎，不套用 §18.3 的對應。
 - 機器翻譯引擎不套用術語表與禁用詞，與上游 Google 翻譯相同。
@@ -1005,3 +1071,8 @@ iOS Safari 背景 event page 掛起的續命處理（長批次翻譯期間保持
 - Chrome 內建翻譯：只在支援 Translator API 的 Chrome 上可用，在網頁內是否可用依瀏覽器而定，執行前會偵測。Firefox 沒有這個 API。每個語言組合要先在驛傳設定頁按「測試」下載模型；設定頁一次只下載「來源語言」設定的那一組，自動偵測時下載英文（目標語言是英文時改為日文）的組合。另外，`【N】` 標記會原樣交給 Translator，連結位置可能比 DeepL / 微軟容易跑掉。
 - Google Drive：需要使用者自備 OAuth 用戶端 ID；存取權杖不跨頁面保存；Firefox 的選用 `identity` 權限尚未實測。
 - 額外的 OpenAI 相容服務：進階選項（逾時、強化標記）與上游自訂模型共用一份。
+- 劃詞卡片的雙向翻譯只支援機器翻譯引擎。Gemini 與自訂模型的 system prompt 由上游依目標語言產生，要支援得改上游的 prompt 組裝。
+- 自訂讀音表的 `/IPA/` 寫法未經官方文件確認，也還沒有用真實金鑰實測（見 §18.11）。
+- 右鍵選單文字跟隨瀏覽器語言，不跟隨介面語言設定（`contextMenus` 只能讀 `_locales`）。
+- 劃詞卡片「按住按鍵拖曳」與懸停翻譯用同一個按鍵時，兩者會同時作用。
+- 學習中心本階段只能加入，不能瀏覽或刪除（第 3 階段）。

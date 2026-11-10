@@ -3,7 +3,8 @@
 // 內容（format 'ekiden-backup' v1）：
 //   settings  與上游「匯出設定」相同：storage.sync 全部 + 固定術語表 / 禁用詞（local），
 //             不含 Gemini apiKey、Instapaper 帳號連結；驛傳的 'fork' 設定也在其中
-//   forkLocal 額外 OpenAI 相容服務的自訂 prompt（存在 storage.local）
+//   forkLocal 存在 storage.local 的驛傳設定：額外 OpenAI 相容服務的自訂 prompt、
+//             自訂讀音表、AI 閱讀卡的自訂指示（後兩項是第 2 階段加的；舊備份沒有就不動目前的值）
 //   secrets   **預設 null**。使用者勾選「包含 API 金鑰」時，才把金鑰以使用者自訂密語加密後放入
 //             （Gemini / 自訂模型 / 驛傳各服務的金鑰；WebDAV 密碼本身永不放入）
 //
@@ -13,9 +14,10 @@
 
 import { encryptJson, decryptJson, MIN_PASSPHRASE_LENGTH } from './crypto.js';
 import {
-  FORK_SYNC_KEY, FORK_SECRETS_KEY, FORK_PROVIDER_PROMPTS_KEY,
-  sanitizeSecrets, sanitizeProviderPrompts, mergeForkSettings,
+  FORK_SYNC_KEY, FORK_SECRETS_KEY, FORK_PROVIDER_PROMPTS_KEY, FORK_EXPLAIN_PROMPT_KEY,
+  sanitizeSecrets, sanitizeProviderPrompts, sanitizeExplainPrompt, mergeForkSettings,
 } from '../settings/schema.js';
+import { PRONUNCIATIONS_KEY, sanitizePronunciations } from '../tts/pronounce.js';
 
 export const BACKUP_FORMAT = 'ekiden-backup';
 export const BACKUP_VERSION = 1;
@@ -41,7 +43,9 @@ function originOf(u) {
 export async function buildBackup(deps, { includeKeys = false, passphrase = '', extVersion = '', now = Date.now() } = {}) {
   const { storage, localSettingsKeys } = deps;
   const settings = await storage.sync.get(null);
-  const localSettings = await storage.local.get([...localSettingsKeys, FORK_PROVIDER_PROMPTS_KEY]);
+  const localSettings = await storage.local.get([
+    ...localSettingsKeys, FORK_PROVIDER_PROMPTS_KEY, PRONUNCIATIONS_KEY, FORK_EXPLAIN_PROMPT_KEY,
+  ]);
   for (const k of localSettingsKeys) {
     if (Object.prototype.hasOwnProperty.call(localSettings, k)) settings[k] = localSettings[k];
   }
@@ -70,7 +74,11 @@ export async function buildBackup(deps, { includeKeys = false, passphrase = '', 
     createdAt: new Date(now).toISOString(),
     extVersion,
     settings,
-    forkLocal: { providerPrompts: sanitizeProviderPrompts(localSettings[FORK_PROVIDER_PROMPTS_KEY]) },
+    forkLocal: {
+      providerPrompts: sanitizeProviderPrompts(localSettings[FORK_PROVIDER_PROMPTS_KEY]),
+      pronunciations: sanitizePronunciations(localSettings[PRONUNCIATIONS_KEY]),
+      explainPrompt: sanitizeExplainPrompt(localSettings[FORK_EXPLAIN_PROMPT_KEY]),
+    },
     secrets,
   };
 }
@@ -144,8 +152,15 @@ export async function restoreBackup(data, deps, { restoreKeys = false, passphras
   if (Object.keys(localPart).length) await storage.local.set(localPart);
   if (Object.keys(syncPart).length) await storage.sync.set(syncPart);
 
-  const prompts = sanitizeProviderPrompts(data.forkLocal?.providerPrompts);
-  await storage.local.set({ [FORK_PROVIDER_PROMPTS_KEY]: prompts });
+  const forkLocal = data.forkLocal || {};
+  const localPatch = { [FORK_PROVIDER_PROMPTS_KEY]: sanitizeProviderPrompts(forkLocal.providerPrompts) };
+  if (Object.prototype.hasOwnProperty.call(forkLocal, 'pronunciations')) {
+    localPatch[PRONUNCIATIONS_KEY] = sanitizePronunciations(forkLocal.pronunciations);
+  }
+  if (Object.prototype.hasOwnProperty.call(forkLocal, 'explainPrompt')) {
+    localPatch[FORK_EXPLAIN_PROMPT_KEY] = sanitizeExplainPrompt(forkLocal.explainPrompt);
+  }
+  await storage.local.set(localPatch);
 
   if (secrets) {
     const restored = sanitizeSecrets(secrets.forkSecrets);

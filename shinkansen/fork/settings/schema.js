@@ -6,19 +6,34 @@
 //                                         providerKeys{id:key} / webdavPassword
 //   storage.local 'forkProviderPrompts'  額外 OpenAI 相容服務的自訂 system prompt {id: prompt}
 //   storage.local 'forkBackupState'      備份同步狀態（ETag、檔案 id、時間）
+//   storage.local 'forkPronunciations'   朗讀的自訂讀音表 [{term, mode, value}]（fork/tts/pronounce.js）
+//   storage.local 'forkExplainPrompt'    AI 閱讀卡的自訂指示（字串；放 local 是因為 sync 單一項目上限 8 KB）
 //
 // 預設值一律不改變上游行為：presetEngines 全空 = 三組預設照上游原本的引擎翻譯。
 
 import { SOURCE_LANGS } from '../engines/lang.js';
 import { CHAIN_CANDIDATES, DEFAULT_CHAIN, normalizeChain } from '../engines/chain.js';
 import { ENGINE_IDS } from '../engines/registry.js';
+import { MODALITY_MODEL_PRICING } from '../../lib/model-pricing.js';
+import { PREBUILT_VOICES, DEFAULT_VOICE } from '../tts/gemini-tts.js';
 
 export const FORK_SYNC_KEY = 'fork';
 export const FORK_SECRETS_KEY = 'forkSecrets';
 export const FORK_PROVIDER_PROMPTS_KEY = 'forkProviderPrompts';
 export const FORK_BACKUP_STATE_KEY = 'forkBackupState';
+export const FORK_EXPLAIN_PROMPT_KEY = 'forkExplainPrompt';
+export const MAX_EXPLAIN_PROMPT = 2000;
 
 export const MAX_PROVIDERS = 8;
+
+// 朗讀模型清單來自 lib/model-pricing.js 的多模態計價表（kind 'tts'），不在別處寫死
+export const TTS_MODELS = Object.keys(MODALITY_MODEL_PRICING).filter((m) => MODALITY_MODEL_PRICING[m].kind === 'tts');
+export const DEFAULT_TTS_MODEL = TTS_MODELS.find((m) => /flash-lite/.test(m)) || TTS_MODELS[0] || '';
+export const STUDY_TRIGGERS = ['select', 'dblclick', 'longpress', 'middle', 'modifier', 'off'];
+export const STUDY_ENGINES_FIXED = ['preset', 'gemini', 'custom'];
+export const MODIFIER_KEYS = ['alt', 'shift', 'ctrl'];
+export const TTS_ENGINES = ['auto', 'gemini', 'browser'];
+export const CONTEXT_SCOPES = ['none', 'paragraph', 'nearby'];
 export const PROVIDER_PREFIX = 'fork-cp:';
 
 export const FORK_DEFAULTS = Object.freeze({
@@ -41,6 +56,30 @@ export const FORK_DEFAULTS = Object.freeze({
     includeKeys: false,
     webdav: { url: '', username: '', dir: 'ekiden' },
     gdrive: { clientId: '' },
+  },
+  // 劃詞卡片（第 2 階段）
+  study: {
+    trigger: 'select',      // select | dblclick | longpress | middle | modifier | off
+    selectMode: 'icon',     // trigger 'select' 時：icon = 先出現小按鈕，點了才開卡片；card = 直接開卡片
+    modifierKey: 'alt',     // trigger 'modifier'：按住這個鍵拖曳選取
+    longPressMs: 500,
+    engine: 'preset',       // preset = 跟主要翻譯預設（Alt+S）同一個引擎；gemini / custom / 機器翻譯 id / fork-cp:<id>
+    bidirectional: false,   // 選取的文字已是目標語言時，改翻成 secondLang（只限機器翻譯引擎）
+    secondLang: 'en',
+    contextMenu: true,      // 右鍵選單：翻譯選取文字 / 翻譯整頁 / 還原這一段
+  },
+  tts: {
+    engine: 'auto',         // auto = 有 Gemini 金鑰用 Gemini，沒有就用瀏覽器內建語音；gemini；browser
+    model: DEFAULT_TTS_MODEL,
+    voice: DEFAULT_VOICE,
+  },
+  explain: {
+    model: '',              // '' = 沿用 Gemini 主設定的模型
+    contextScope: 'paragraph', // none | paragraph | nearby（前後各一段）
+  },
+  paragraph: {
+    hoverRestMs: 150,       // 懸停翻譯的停留時間（上游固定 150 ms，預設值不變）
+    copyShortcut: { code: 'KeyC', alt: true, shift: false, ctrl: false, meta: false }, // null = 關閉
   },
 });
 
@@ -194,8 +233,72 @@ export function sanitizeForkSettings(raw, { fillDefaults = true } = {}) {
     clean.backup.gdrive.clientId = str(b.gdrive.clientId, 200).trim();
   }
 
+  sanitizeStudy(src, d, clean, warnings);
+
   clean.schema = 1;
   return { clean, warnings };
+}
+
+function pickEnum(v, list, fallback, warnings, name) {
+  if (v === undefined) return fallback;
+  if (list.includes(v)) return v;
+  warnings.push(name);
+  return fallback;
+}
+
+function sanitizeShortcut(v) {
+  if (v === null) return null;
+  if (!v || typeof v !== 'object' || typeof v.code !== 'string' || !/^[A-Za-z0-9]{1,20}$/.test(v.code)) return undefined;
+  const sc = { code: v.code, alt: !!v.alt, shift: !!v.shift, ctrl: !!v.ctrl, meta: !!v.meta };
+  // 沒有任何修飾鍵的單鍵會干擾一般打字，不接受
+  return (sc.alt || sc.ctrl || sc.meta) ? sc : undefined;
+}
+
+function sanitizeStudy(src, d, clean, warnings) {
+  const st = src.study && typeof src.study === 'object' ? src.study : {};
+  clean.study = clone(d.study);
+  clean.study.trigger = pickEnum(st.trigger, STUDY_TRIGGERS, d.study.trigger, warnings, 'study.trigger');
+  clean.study.selectMode = pickEnum(st.selectMode, ['icon', 'card'], d.study.selectMode, warnings, 'study.selectMode');
+  clean.study.modifierKey = pickEnum(st.modifierKey, MODIFIER_KEYS, d.study.modifierKey, warnings, 'study.modifierKey');
+  if (st.longPressMs !== undefined) clean.study.longPressMs = Math.round(num(st.longPressMs, { min: 250, max: 2000 }) ?? d.study.longPressMs);
+  if (st.engine !== undefined) {
+    const e = st.engine;
+    const ok = typeof e === 'string'
+      && (STUDY_ENGINES_FIXED.includes(e) || ENGINE_IDS.includes(e) || /^fork-cp:[a-zA-Z0-9_-]{1,40}$/.test(e));
+    if (ok) clean.study.engine = e;
+    else warnings.push('study.engine');
+  }
+  if (typeof st.bidirectional === 'boolean') clean.study.bidirectional = st.bidirectional;
+  clean.study.secondLang = pickEnum(st.secondLang, SOURCE_LANGS.filter((x) => x !== 'auto'), d.study.secondLang, warnings, 'study.secondLang');
+  if (typeof st.contextMenu === 'boolean') clean.study.contextMenu = st.contextMenu;
+
+  const tts = src.tts && typeof src.tts === 'object' ? src.tts : {};
+  clean.tts = clone(d.tts);
+  clean.tts.engine = pickEnum(tts.engine, TTS_ENGINES, d.tts.engine, warnings, 'tts.engine');
+  clean.tts.model = pickEnum(tts.model, TTS_MODELS, d.tts.model, warnings, 'tts.model');
+  clean.tts.voice = pickEnum(tts.voice, PREBUILT_VOICES, d.tts.voice, warnings, 'tts.voice');
+
+  const ex = src.explain && typeof src.explain === 'object' ? src.explain : {};
+  clean.explain = clone(d.explain);
+  if (ex.model !== undefined) {
+    const m = typeof ex.model === 'string' ? ex.model.trim() : '';
+    if (m === '' || /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(m)) clean.explain.model = m;
+    else warnings.push('explain.model');
+  }
+  clean.explain.contextScope = pickEnum(ex.contextScope, CONTEXT_SCOPES, d.explain.contextScope, warnings, 'explain.contextScope');
+
+  const pg = src.paragraph && typeof src.paragraph === 'object' ? src.paragraph : {};
+  clean.paragraph = clone(d.paragraph);
+  if (pg.hoverRestMs !== undefined) clean.paragraph.hoverRestMs = Math.round(num(pg.hoverRestMs, { min: 0, max: 2000 }) ?? d.paragraph.hoverRestMs);
+  if (pg.copyShortcut !== undefined) {
+    const sc = sanitizeShortcut(pg.copyShortcut);
+    if (sc === undefined) warnings.push('paragraph.copyShortcut');
+    else clean.paragraph.copyShortcut = sc;
+  }
+}
+
+export function sanitizeExplainPrompt(raw) {
+  return typeof raw === 'string' ? raw.slice(0, MAX_EXPLAIN_PROMPT) : '';
 }
 
 /** 消毒 storage.local 的 forkSecrets（雲端還原用；只收已知欄位）。 */

@@ -22,5 +22,17 @@
   },
   "cmdSendInstapaper": {
     "message": "Send to Instapaper"
+  },
+  "ctxTranslateSelection": {
+    "message": "Translate “%s”",
+    "description": "[Ekiden fork] 右鍵選單：翻譯選取文字（%s = 選取的文字）"
+  },
+  "ctxTranslatePage": {
+    "message": "Translate page / show original",
+    "description": "[Ekiden fork] 右鍵選單：翻譯整頁（與主要預設快速鍵相同）"
+  },
+  "ctxRestoreParagraph": {
+    "message": "Show original of this paragraph",
+    "description": "[Ekiden fork] 右鍵選單：只還原游標所在的段落"
   }
 }

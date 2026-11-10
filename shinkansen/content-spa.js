@@ -100,6 +100,8 @@
     STATE.nodeValueMutateBackup?.clear?.();
     STATE.originalLang?.clear?.();
     STATE.originalFontFamily?.clear?.();
+    // [Ekiden fork] SPA 換頁後保留的舊節點也清掉「還原單一段落」的標記（fork/content/paragraph-tools.js）
+    SK.forkAfterRestorePage?.();
     STATE.hoverTranslated = false;  // 換頁後懸停翻譯痕跡已隨簿記清掉
     SK.restoreDocLang?.();  // v2.0.73:SPA 換頁後新內容是原文,<html lang> 還原原值
     // v2.0.85: Map 已全清,掃掉簿記追不到的無主殭屍 marker(與 restoreInjectedDom 同)

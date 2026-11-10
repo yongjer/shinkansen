@@ -85,7 +85,9 @@
 
   function schedule() {
     if (restTimer) clearTimeout(restTimer);
-    restTimer = setTimeout(() => { restTimer = null; fire(); }, REST_MS);
+    // [Ekiden fork] 停留時間可在驛傳設定頁調整（fork/content/paragraph-tools.js；預設仍是 REST_MS）
+    const restMs = typeof SK.forkHoverRestMs === 'function' ? SK.forkHoverRestMs() : REST_MS;
+    restTimer = setTimeout(() => { restTimer = null; fire(); }, restMs);
   }
 
   function onMouseMove(e) {

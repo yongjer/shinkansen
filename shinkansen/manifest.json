@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "2.6.401",
+  "version": "2.6.402",
   "description": "__MSG_extDescription__",
   "homepage_url": "https://github.com/yongjer/shinkansen",
   "default_locale": "zh_TW",
@@ -19,7 +19,8 @@
   "permissions": [
     "storage",
     "alarms",
-    "webNavigation"
+    "webNavigation",
+    "contextMenus"
   ],
   "optional_permissions": [
     "identity"
@@ -100,7 +101,10 @@
         "content-hover.js",
         "content-floating-icon.js",
         "fork/i18n/fork-strings.js",
-        "fork/content/ekiden-content.js"
+        "fork/i18n/study-strings.js",
+        "fork/content/ekiden-content.js",
+        "fork/content/paragraph-tools.js",
+        "fork/content/study-card.js"
       ],
       "css": [
         "content.css"

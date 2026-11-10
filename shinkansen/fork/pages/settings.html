@@ -150,6 +150,141 @@
       </div>
     </section>
 
+    <!-- ── 劃詞卡片（第 2 階段）──────────────────────────── -->
+    <section id="sec-study">
+      <h2 data-i18n="fork.study.heading">劃詞卡片</h2>
+      <p class="muted" data-i18n="fork.study.hint"></p>
+
+      <label>
+        <span data-i18n="fork.study.trigger">觸發方式</span>
+        <select data-bind="study.trigger" id="study-trigger">
+          <option value="select" data-i18n="fork.study.trigger.select"></option>
+          <option value="dblclick" data-i18n="fork.study.trigger.dblclick"></option>
+          <option value="longpress" data-i18n="fork.study.trigger.longpress"></option>
+          <option value="middle" data-i18n="fork.study.trigger.middle"></option>
+          <option value="modifier" data-i18n="fork.study.trigger.modifier"></option>
+          <option value="off" data-i18n="fork.study.trigger.off"></option>
+        </select>
+      </label>
+      <label data-show-trigger="select">
+        <span data-i18n="fork.study.selectMode">選取文字後</span>
+        <select data-bind="study.selectMode">
+          <option value="icon" data-i18n="fork.study.selectMode.icon"></option>
+          <option value="card" data-i18n="fork.study.selectMode.card"></option>
+        </select>
+      </label>
+      <label data-show-trigger="modifier">
+        <span data-i18n="fork.study.modifierKey">按住的按鍵</span>
+        <select data-bind="study.modifierKey">
+          <option value="alt">Alt / ⌥</option>
+          <option value="shift">Shift / ⇧</option>
+          <option value="ctrl">Ctrl / ⌃</option>
+        </select>
+        <small class="muted" data-i18n="fork.study.modifierHint"></small>
+      </label>
+      <label data-show-trigger="longpress">
+        <span data-i18n="fork.study.longPressMs">按住多久（毫秒）</span>
+        <input type="number" min="250" max="2000" step="50" data-bind="study.longPressMs">
+      </label>
+
+      <label>
+        <span data-i18n="fork.study.engine">卡片的翻譯引擎</span>
+        <select id="study-engine"></select>
+        <small class="muted" data-i18n="fork.study.engineHint"></small>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" data-bind="study.bidirectional">
+        <span class="checkbox-body">
+          <span data-i18n="fork.study.bidirectional">雙向翻譯</span>
+          <small class="muted" data-i18n="fork.study.bidirectionalHint"></small>
+        </span>
+      </label>
+      <label>
+        <span data-i18n="fork.study.secondLang">已是目標語言時改翻成</span>
+        <select data-bind="study.secondLang" id="study-second-lang"></select>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" data-bind="study.contextMenu">
+        <span class="checkbox-body">
+          <span data-i18n="fork.study.contextMenu">右鍵選單</span>
+          <small class="muted" data-i18n="fork.study.contextMenuHint"></small>
+        </span>
+      </label>
+
+      <h3 data-i18n="fork.tts.heading">朗讀</h3>
+      <p class="muted" data-i18n="fork.tts.hint"></p>
+      <label>
+        <span data-i18n="fork.tts.engine">語音來源</span>
+        <select data-bind="tts.engine">
+          <option value="auto" data-i18n="fork.tts.engine.auto"></option>
+          <option value="gemini" data-i18n="fork.tts.engine.gemini"></option>
+          <option value="browser" data-i18n="fork.tts.engine.browser"></option>
+        </select>
+      </label>
+      <label>
+        <span data-i18n="fork.tts.model">Gemini 語音模型</span>
+        <select data-bind="tts.model" id="tts-model"></select>
+        <small class="muted" data-i18n="fork.tts.modelHint"></small>
+      </label>
+      <label>
+        <span data-i18n="fork.tts.voice">聲音</span>
+        <select data-bind="tts.voice" id="tts-voice"></select>
+      </label>
+      <div class="test-row">
+        <input type="text" id="tts-sample" spellcheck="false" data-i18n-attr-placeholder="fork.tts.samplePlaceholder" aria-label="sample">
+        <button type="button" class="ghost-btn" id="tts-try" data-i18n="fork.tts.try">試聽</button>
+        <button type="button" class="ghost-btn" id="tts-try-slow" data-i18n="fork.tts.trySlow">慢速試聽</button>
+      </div>
+      <div class="api-test-result" id="tts-result" role="status" hidden></div>
+
+      <h3 data-i18n="fork.pron.heading">自訂讀音</h3>
+      <p class="muted" data-i18n="fork.pron.hint"></p>
+      <div id="pron-list"></div>
+      <div class="btn-row">
+        <button type="button" class="secondary" id="pron-add" data-i18n="fork.pron.add">新增讀音</button>
+        <button type="button" class="ghost-btn" id="tts-clear-cache" data-i18n="fork.tts.clearCache">清除語音快取</button>
+      </div>
+
+      <h3 data-i18n="fork.explain.heading">AI 閱讀卡</h3>
+      <p class="muted" data-i18n="fork.explain.hint"></p>
+      <label>
+        <span data-i18n="fork.explain.model">模型</span>
+        <input type="text" spellcheck="false" data-bind="explain.model" id="explain-model" list="explain-model-list">
+        <datalist id="explain-model-list"></datalist>
+        <small class="muted" id="explain-model-hint"></small>
+      </label>
+      <label>
+        <span data-i18n="fork.explain.contextScope">附上的上下文</span>
+        <select data-bind="explain.contextScope">
+          <option value="paragraph" data-i18n="fork.explain.scope.paragraph"></option>
+          <option value="nearby" data-i18n="fork.explain.scope.nearby"></option>
+          <option value="none" data-i18n="fork.explain.scope.none"></option>
+        </select>
+      </label>
+      <label>
+        <span data-i18n="fork.explain.custom">自訂指示</span>
+        <textarea rows="3" id="explain-prompt" maxlength="2000" data-i18n-attr-placeholder="fork.explain.customPlaceholder"></textarea>
+        <small class="muted" data-i18n="fork.explain.customHint"></small>
+      </label>
+
+      <h3 data-i18n="fork.para.heading">段落工具</h3>
+      <label>
+        <span data-i18n="fork.para.copyShortcut">複製段落譯文的快速鍵</span>
+        <span class="api-key-row">
+          <input type="text" id="para-copy-shortcut" readonly data-i18n-attr-placeholder="fork.para.shortcutPlaceholder">
+          <button type="button" class="ghost-btn" id="para-copy-clear" data-i18n="fork.para.shortcutClear">關閉</button>
+        </span>
+        <small class="muted" data-i18n="fork.para.copyHint"></small>
+      </label>
+      <label>
+        <span data-i18n="fork.para.hoverRestMs">懸停翻譯的停留時間（毫秒）</span>
+        <input type="number" min="0" max="2000" step="10" data-bind="paragraph.hoverRestMs">
+        <small class="muted" data-i18n="fork.para.hoverHint"></small>
+      </label>
+      <p class="muted" data-i18n="fork.para.restoreHint"></p>
+      <p class="muted" id="learn-count"></p>
+    </section>
+
     <!-- ── 設定備份 ─────────────────────────────────────── -->
     <section id="sec-backup">
       <h2 data-i18n="fork.backup.heading">設定備份</h2>
@@ -255,7 +390,9 @@
   <script src="../../lib/i18n.js"></script>
   <script src="../i18n/fork-i18n.js"></script>
   <script src="../i18n/fork-strings.js"></script>
+  <script src="../i18n/study-strings.js"></script>
   <script src="../i18n/settings-strings.js"></script>
+  <script src="../i18n/settings-study-strings.js"></script>
   <script src="../../lib/shortcut-utils.js"></script>
   <script type="module" src="settings.js"></script>
 </body>
