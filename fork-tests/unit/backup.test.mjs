@@ -141,6 +141,28 @@ describe('備份還原', () => {
     expect(local.apiKey).toBe('GEMINI-KEY');
   });
 
+  test('自訂讀音表與 AI 閱讀卡的自訂指示會一起備份；舊備份沒有這兩項時不動目前的值', async () => {
+    const source = baseStorage();
+    await source.local.set({
+      forkPronunciations: [{ term: 'GIF', mode: 'ipa', value: '/dʒɪf/' }, { term: '', value: 'drop' }],
+      forkExplainPrompt: 'Prefer business examples.',
+    });
+    const data = await buildBackup({ storage: source, localSettingsKeys: LOCAL_SETTINGS_KEYS }, { now: 0 });
+    expect(data.forkLocal.pronunciations).toEqual([{ term: 'GIF', mode: 'ipa', value: 'dʒɪf' }]);
+    expect(data.forkLocal.explainPrompt).toBe('Prefer business examples.');
+
+    const target = createFakeStorage();
+    await restoreBackup(JSON.parse(JSON.stringify(data)), deps(target));
+    expect(target.local.dump().forkPronunciations).toEqual([{ term: 'GIF', mode: 'ipa', value: 'dʒɪf' }]);
+    expect(target.local.dump().forkExplainPrompt).toBe('Prefer business examples.');
+
+    // 第 1 階段的備份（forkLocal 只有 providerPrompts）
+    const keep = createFakeStorage({ local: { forkPronunciations: [{ term: 'a', mode: 'respell', value: 'b' }], forkExplainPrompt: 'keep' } });
+    await restoreBackup({ format: BACKUP_FORMAT, version: 1, settings: {}, forkLocal: { providerPrompts: {} }, secrets: null }, deps(keep));
+    expect(keep.local.dump().forkPronunciations).toEqual([{ term: 'a', mode: 'respell', value: 'b' }]);
+    expect(keep.local.dump().forkExplainPrompt).toBe('keep');
+  });
+
   test('一併還原金鑰：密語正確才寫入；保留本機 WebDAV 密碼', async () => {
     const source = baseStorage();
     const data = await buildBackup({ storage: source, localSettingsKeys: LOCAL_SETTINGS_KEYS }, { includeKeys: true, passphrase: 'long passphrase' });

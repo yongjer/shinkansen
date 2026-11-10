@@ -17,6 +17,13 @@ const ARTICLE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><tit
 <p>Spectators line the roads for hours to cheer for their favourite university teams.</p>
 </article></main></body></html>`;
 
+const ARTICLE_JA = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>駅伝</title></head>
+<body><main><article>
+<h1>駅伝の歴史</h1>
+<p>駅伝は百年以上前に日本で始まった長距離リレー競走です。</p>
+<p>選手はたすきをかけて走り、中継所で次の走者に手渡します。</p>
+</article></main></body></html>`;
+
 export const test = base.extend({
   // eslint-disable-next-line no-empty-pattern
   context: async ({}, use) => {
@@ -32,6 +39,16 @@ export const test = base.extend({
         '--no-default-browser-check',
       ],
     });
+    // 上游首次安裝會自動開設定頁（background.js onInstalled → openOptionsPage）。
+    // 它晚一點才開時，會打斷測試的第一個 page.goto（"interrupted by another navigation"），
+    // 所以先等它出現並關掉，測試開始時沒有這個競速。
+    const isOptions = (p) => /\/options\/options\.html/.test(p.url());
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const opts = context.pages().find(isOptions);
+      if (opts) { await opts.close(); break; }
+      await new Promise((r) => setTimeout(r, 50));
+    }
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
@@ -47,7 +64,7 @@ export const test = base.extend({
     await use(new URL(serviceWorker.url()).host);
   },
 
-  // 本機 server：GET /article.html 測試頁；POST /deeplx 模擬 DeepLX（回「譯：」+ 原文）
+  // 本機 server：GET /article.html、/ja.html 測試頁；POST /deeplx 模擬 DeepLX（回「譯：」+ 原文）
   // eslint-disable-next-line no-empty-pattern
   localServer: async ({}, use) => {
     const requests = [];
@@ -55,6 +72,11 @@ export const test = base.extend({
       if (req.method === 'GET' && req.url.startsWith('/article.html')) {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         res.end(ARTICLE);
+        return;
+      }
+      if (req.method === 'GET' && req.url.startsWith('/ja.html')) {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        res.end(ARTICLE_JA);
         return;
       }
       if (req.method === 'POST' && req.url.startsWith('/deeplx')) {

@@ -18,6 +18,10 @@ import { buildBackup, parseBackup, summarizeBackup, restoreBackup, BACKUP_FILENA
 import { MIN_PASSPHRASE_LENGTH } from '../backup/crypto.js';
 import { createWebdavClient } from '../backup/webdav.js';
 import { buildAuthUrl, parseAuthRedirect, createDriveClient } from '../backup/gdrive.js';
+import { MODEL_PRICING, getModalityPricing } from '../../lib/model-pricing.js';
+import { PREBUILT_VOICES } from '../tts/gemini-tts.js';
+import { PRONUNCIATIONS_KEY, sanitizePronunciations, MAX_PRONUNCIATIONS } from '../tts/pronounce.js';
+import { TTS_MODELS, FORK_EXPLAIN_PROMPT_KEY, sanitizeExplainPrompt } from '../settings/schema.js';
 
 const I18N = window.__SK.i18n;
 const $ = (id) => document.getElementById(id);
@@ -39,6 +43,9 @@ const S = {
   presets: DEFAULT_SETTINGS.translatePresets,
   target: 'zh-TW',
   status: null, // FORK_ENGINE_STATUS 回應
+  pron: [],          // storage.local forkPronunciations（編輯中的列可能還沒填完）
+  explainPrompt: '', // storage.local forkExplainPrompt
+  geminiModel: '',   // 上游 Gemini 主設定的模型（AI 閱讀卡預設沿用）
 };
 
 const engineLabel = (id) => _t(`fork.engine.${id}.name`);
@@ -46,9 +53,12 @@ const engineLabel = (id) => _t(`fork.engine.${id}.name`);
 // ── 讀取 ──────────────────────────────────────────────────
 async function loadState() {
   const [sync, local] = await Promise.all([
-    browser.storage.sync.get([FORK_SYNC_KEY, 'translatePresets', 'uiLanguage', 'targetLanguage']),
-    browser.storage.local.get([FORK_SECRETS_KEY, FORK_PROVIDER_PROMPTS_KEY, FORK_BACKUP_STATE_KEY]),
+    browser.storage.sync.get([FORK_SYNC_KEY, 'translatePresets', 'uiLanguage', 'targetLanguage', 'geminiConfig']),
+    browser.storage.local.get([FORK_SECRETS_KEY, FORK_PROVIDER_PROMPTS_KEY, FORK_BACKUP_STATE_KEY, PRONUNCIATIONS_KEY, FORK_EXPLAIN_PROMPT_KEY]),
   ]);
+  S.pron = sanitizePronunciations(local[PRONUNCIATIONS_KEY]);
+  S.explainPrompt = sanitizeExplainPrompt(local[FORK_EXPLAIN_PROMPT_KEY]);
+  S.geminiModel = sync.geminiConfig?.model || DEFAULT_SETTINGS.geminiConfig?.model || '';
   S.fork = mergeForkSettings(sync[FORK_SYNC_KEY]);
   S.secrets = sanitizeSecrets(local[FORK_SECRETS_KEY]);
   S.prompts = sanitizeProviderPrompts(local[FORK_PROVIDER_PROMPTS_KEY]);
@@ -94,6 +104,12 @@ async function flush() {
     }
     if (parts.has('prompts')) {
       await browser.storage.local.set({ [FORK_PROVIDER_PROMPTS_KEY]: sanitizeProviderPrompts(S.prompts) });
+    }
+    if (parts.has('pron')) {
+      await browser.storage.local.set({ [PRONUNCIATIONS_KEY]: sanitizePronunciations(S.pron) });
+    }
+    if (parts.has('explainPrompt')) {
+      await browser.storage.local.set({ [FORK_EXPLAIN_PROMPT_KEY]: sanitizeExplainPrompt(S.explainPrompt) });
     }
     showSaveBar('saved', _t('options.action.savedBar'));
     refreshStatus();
@@ -841,11 +857,156 @@ async function driveDisconnect() {
   setResult(statusEl(), 'ok', _t('fork.backup.gdriveDisconnected'));
 }
 
+// ── 劃詞卡片 / 朗讀 / AI 閱讀卡 / 段落工具 ─────────────────
+const STUDY_FIXED = ['preset', 'gemini', 'custom'];
+const SAMPLE_TTS = 'Ekiden is a long-distance relay race that started in Japan.';
+
+function fillSelect(sel, options, value) {
+  sel.textContent = '';
+  for (const [v, label] of options) sel.appendChild(el('option', { value: v, text: label }));
+  if (options.some(([v]) => v === value)) sel.value = value;
+}
+
+function renderStudyEngine() {
+  const options = STUDY_FIXED.map((v) => [v, _t(`fork.study.engine.${v}`)]);
+  options.push(['google', engineLabel('google')]);
+  for (const id of MT_CHOICES) options.push([id, engineLabel(id)]);
+  for (const p of S.fork.providers) options.push([`fork-cp:${p.id}`, `${_t('fork.study.engine.provider')}: ${p.label || p.model || p.id}`]);
+  fillSelect($('study-engine'), options, S.fork.study.engine);
+}
+
+function usd(n) {
+  return `$${Number(n).toFixed(2)}`;
+}
+
+function renderStudyOptions() {
+  renderStudyEngine();
+  fillSelect($('study-second-lang'), Object.entries(LANG_NATIVE), S.fork.study.secondLang);
+  fillSelect($('tts-model'), TTS_MODELS.map((m) => {
+    const p = getModalityPricing(m);
+    const price = p ? ` — ${_t('fork.tts.price', { input: usd(p.input?.text ?? 0), output: usd(p.output?.audio ?? 0) })}` : '';
+    return [m, m + price];
+  }), S.fork.tts.model);
+  fillSelect($('tts-voice'), PREBUILT_VOICES.map((v) => [v, v]), S.fork.tts.voice);
+  const dl = $('explain-model-list');
+  dl.textContent = '';
+  for (const m of Object.keys(MODEL_PRICING)) dl.appendChild(el('option', { value: m }));
+  $('explain-model').placeholder = S.geminiModel || '';
+  $('explain-model-hint').textContent = _t('fork.explain.modelHint', { model: S.geminiModel || '—' });
+  $('explain-prompt').value = S.explainPrompt;
+  renderCopyShortcut();
+  updateStudyVisibility();
+}
+
+function updateStudyVisibility() {
+  const trig = S.fork.study.trigger;
+  for (const n of document.querySelectorAll('[data-show-trigger]')) n.hidden = n.dataset.showTrigger !== trig;
+}
+
+function renderCopyShortcut() {
+  const sc = S.fork.paragraph.copyShortcut;
+  const lib = window.__SKShortcuts;
+  $('para-copy-shortcut').value = sc && lib ? lib.format(sc) : '';
+}
+
+function onCopyShortcutKey(e) {
+  if (e.key === 'Tab') return;
+  e.preventDefault();
+  const lib = window.__SKShortcuts;
+  const sc = lib && lib.eventToShortcut(e);
+  if (!sc) return;
+  if (!sc.alt && !sc.ctrl && !sc.meta) {
+    setResult($('tts-result'), 'error', _t('fork.para.shortcutNeedsModifier'));
+    return;
+  }
+  S.fork.paragraph.copyShortcut = sc;
+  renderCopyShortcut();
+  markDirty('fork');
+}
+
+function renderPron() {
+  const list = $('pron-list');
+  list.textContent = '';
+  S.pron.forEach((row, i) => {
+    const mode = el('select', { 'data-pron-field': 'mode', 'data-pron-idx': i, 'aria-label': _t('fork.pron.mode') }, [
+      el('option', { value: 'ipa', text: _t('fork.pron.mode.ipa') }),
+      el('option', { value: 'respell', text: _t('fork.pron.mode.respell') }),
+    ]);
+    mode.value = row.mode;
+    list.appendChild(el('div', { class: 'pron-row' }, [
+      el('input', { type: 'text', spellcheck: 'false', maxlength: 80, value: row.term, 'data-pron-field': 'term', 'data-pron-idx': i, placeholder: _t('fork.pron.termPlaceholder'), 'aria-label': _t('fork.pron.term') }),
+      mode,
+      el('input', { type: 'text', spellcheck: 'false', maxlength: 160, value: row.value, 'data-pron-field': 'value', 'data-pron-idx': i, placeholder: _t(row.mode === 'ipa' ? 'fork.pron.ipaPlaceholder' : 'fork.pron.respellPlaceholder'), 'aria-label': _t('fork.pron.value'), class: row.mode === 'ipa' ? 'ipa' : '' }),
+      el('button', { type: 'button', class: 'ghost-btn', 'data-pron-try': i, text: _t('fork.tts.try') }),
+      el('button', { type: 'button', class: 'ghost-btn', 'data-pron-remove': i, text: _t('fork.providers.remove') }),
+    ]));
+  });
+  $('pron-add').disabled = S.pron.length >= MAX_PRONUNCIATIONS;
+}
+
+function onPronChange(node) {
+  const i = Number(node.dataset.pronIdx);
+  if (!S.pron[i]) return;
+  S.pron[i][node.dataset.pronField] = node.value;
+  if (node.dataset.pronField === 'mode') renderPron();
+  markDirty('pron');
+}
+
+let audioCtx = null;
+async function playTts(text, mode = 'normal') {
+  const out = $('tts-result');
+  setResult(out, 'loading', _t('fork.tts.generating'));
+  await flush(); // 讀音表要先存好，背景端才會套用
+  const resp = await send('FORK_TTS', { text, mode });
+  if (!resp?.ok) {
+    setResult(out, 'error', errorText(resp));
+    return;
+  }
+  try {
+    if (resp.engine === 'browser') {
+      const u = new SpeechSynthesisUtterance(resp.text);
+      u.rate = mode === 'slow' ? 0.65 : 1;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+      setResult(out, 'ok', _t('fork.tts.browserPlayed', { text: resp.text }));
+      return;
+    }
+    const bin = atob(resp.audio);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    audioCtx ||= new AudioContext();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    const buf = await audioCtx.decodeAudioData(bytes.buffer);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioCtx.destination);
+    src.start();
+    setResult(out, 'ok', _t(resp.cached ? 'fork.tts.playedCached' : 'fork.tts.played'));
+  } catch (err) {
+    setResult(out, 'error', err?.message || String(err));
+  }
+}
+
+async function refreshLearnCount() {
+  const r = await send('FORK_LEARN_COUNT');
+  $('learn-count').textContent = r?.ok ? _t('fork.learn.count', { count: r.count }) : '';
+}
+
 // ── 事件 ──────────────────────────────────────────────────
 function wireEvents() {
   document.addEventListener('change', (e) => {
     const n = e.target;
-    if (n.matches('[data-bind]')) onBoundChange(n);
+    if (n.matches('[data-bind]')) {
+      onBoundChange(n);
+      if (n.dataset.bind === 'study.trigger') updateStudyVisibility();
+    } else if (n.matches('[data-pron-field]')) onPronChange(n);
+    else if (n.id === 'study-engine') {
+      S.fork.study.engine = n.value;
+      markDirty('fork');
+    } else if (n.id === 'explain-prompt') {
+      S.explainPrompt = n.value;
+      markDirty('explainPrompt');
+    }
     else if (n.matches('[data-secret]')) onSecretChange(n);
     else if (n.matches('[data-rate]')) onRateChange(n);
     else if (n.matches('[data-chain-toggle]')) toggleChain(n.dataset.chainToggle, n.checked);
@@ -897,12 +1058,35 @@ function wireEvents() {
     else if (n.id === 'gdrive-restore') withBusy(n, driveRestore);
     else if (n.id === 'gdrive-disconnect') driveDisconnect();
     else if (n.id === 'restore-confirm') confirmRestore();
+    else if (n.id === 'pron-add') {
+      S.pron.push({ term: '', mode: 'ipa', value: '' });
+      renderPron();
+      $('pron-list').lastElementChild?.querySelector('input')?.focus();
+    } else if (n.dataset.pronRemove !== undefined) {
+      S.pron.splice(Number(n.dataset.pronRemove), 1);
+      renderPron();
+      markDirty('pron');
+    } else if (n.dataset.pronTry !== undefined) {
+      const row = S.pron[Number(n.dataset.pronTry)];
+      if (row?.term) playTts(row.term);
+    } else if (n.id === 'tts-try' || n.id === 'tts-try-slow') {
+      playTts($('tts-sample').value.trim() || SAMPLE_TTS, n.id === 'tts-try-slow' ? 'slow' : 'normal');
+    } else if (n.id === 'tts-clear-cache') {
+      send('FORK_TTS_CLEAR_CACHE').then((r) => setResult($('tts-result'), r?.ok ? 'ok' : 'error', r?.ok ? _t('fork.tts.cacheCleared') : errorText(r)));
+    } else if (n.id === 'para-copy-clear') {
+      S.fork.paragraph.copyShortcut = null;
+      renderCopyShortcut();
+      markDirty('fork');
+    }
     else if (n.id === 'restore-cancel') {
       $('restore-dialog').close();
       pendingRestore = null;
       setResult(statusEl(), 'loading', _t('fork.backup.cancelled'));
     }
   });
+
+  $('para-copy-shortcut').addEventListener('keydown', onCopyShortcutKey);
+  $('study-engine').addEventListener('focus', renderStudyEngine); // 同頁新增 / 改名的服務要出現在清單裡
 
   $('restore-with-keys').addEventListener('change', (e) => {
     $('restore-passphrase-row').hidden = !e.target.checked;
@@ -936,6 +1120,8 @@ function renderAll() {
   renderPresets();
   renderChain();
   renderProviders();
+  renderStudyOptions();
+  renderPron();
   renderBackupState();
   updateDriveButtons();
   $('gdrive-redirect').value = redirectUri();
@@ -947,6 +1133,7 @@ async function init() {
   wireEvents();
   renderAll();
   refreshStatus();
+  refreshLearnCount();
   if (typeof self.Translator !== 'undefined') checkChromeTranslator();
   else {
     $('ct-status').textContent = _t('fork.ct.noApi');

@@ -7,9 +7,11 @@
 //   - 用量以字元計（billingUnit: 'chars'），記錄實際服務的引擎與耗時
 //
 // 回傳形狀與 handleTranslateGoogle 相同，content 端的 translateUnitsGoogle 不需區分。
+// payload.forkTarget（選填，劃詞卡片用）：覆蓋目標語言，快取 key 也跟著分區。
 
 import { codedError } from '../../lib/bg-error.js';
 import { isMtEngineId } from '../engines/registry.js';
+import { TARGET_LANGS } from '../engines/lang.js';
 
 export function mtCacheSuffix(engineId, target, source) {
   let s = '_mt_' + engineId.replace(/[^a-z0-9]/gi, '');
@@ -43,8 +45,12 @@ export function createMtBatchHandler(deps) {
       return { result: [], usage: { engine: engineId, chars: 0, cacheHits: 0 } };
     }
 
-    const [target, fork, secrets] = await Promise.all([deps.getTarget(), deps.readFork(), deps.readSecrets()]);
-    const cfg = fork.mt || {};
+    const [settingsTarget, fork, secrets] = await Promise.all([deps.getTarget(), deps.readFork(), deps.readSecrets()]);
+    // 劃詞卡片的雙向翻譯：選取的文字已是目標語言時，指定翻成另一種語言。
+    // 這時原文就是平常的目標語言，固定的來源語言設定不適用，改成自動偵測。
+    const override = TARGET_LANGS.includes(payload?.forkTarget) ? payload.forkTarget : '';
+    const target = override || settingsTarget;
+    const cfg = override ? { ...(fork.mt || {}), sourceLang: 'auto' } : (fork.mt || {});
     const suffix = mtCacheSuffix(engineId, target, cfg.sourceLang);
 
     const cached = await deps.cache.getBatch(texts, suffix);

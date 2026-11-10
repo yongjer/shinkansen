@@ -1396,7 +1396,7 @@ function errorFields(err) {
 }
 
 // [Ekiden fork] 交給驛傳重用的內部函式（皆為 function declaration，hoisting 後此時已可用）
-initFork({ handleTranslateCustom, errorFields });
+initFork({ handleTranslateCustom, errorFields, buildFixedGlossaryEntries });
 
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const type = message?.type;

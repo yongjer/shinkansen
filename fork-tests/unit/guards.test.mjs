@@ -45,6 +45,8 @@ describe('原始碼規則', () => {
       'deeplx.example.com', 'cloud.example.com', 'dav.jianguoyun.com',
       // 渲染 / 文件來源
       'ai.google.dev', 'abc.chromiumapp.org',
+      // Gemini（上游已有的主機；語音與 AI 閱讀卡沿用）
+      'generativelanguage.googleapis.com',
     ]);
     const unexpected = new Set();
     for (const f of forkSources) {
@@ -57,7 +59,7 @@ describe('原始碼規則', () => {
     expect([...unexpected]).toEqual([]);
   });
 
-  test('manifest 沒有移除上游權限；fork 只新增 optional identity 與 6 個翻譯 / 備份主機', () => {
+  test('manifest 沒有移除上游權限；fork 只新增 optional identity、contextMenus 與 6 個翻譯 / 備份主機', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'shinkansen/manifest.json'), 'utf8'));
     expect(manifest.optional_permissions).toEqual(['identity']);
     expect(manifest.permissions).not.toContain('identity');
@@ -68,7 +70,12 @@ describe('原始碼規則', () => {
       expect(manifest.host_permissions).toContain(h);
     }
     const mainScripts = manifest.content_scripts.find((c) => c.js.includes('content.js')).js;
-    expect(mainScripts.slice(-2)).toEqual(['fork/i18n/fork-strings.js', 'fork/content/ekiden-content.js']);
+    expect(mainScripts.slice(-5)).toEqual([
+      'fork/i18n/fork-strings.js', 'fork/i18n/study-strings.js', 'fork/content/ekiden-content.js',
+      'fork/content/paragraph-tools.js', 'fork/content/study-card.js',
+    ]);
+    // 上游的三個權限都在；第 2 階段只加 contextMenus（安裝時不會跳出權限警告）
+    expect(manifest.permissions).toEqual(['storage', 'alarms', 'webNavigation', 'contextMenus']);
   });
 
   test('版號必須是三段：四段會被上游當成開發版，對所有網頁開放 Debug Bridge（FORK-NOTES §5.1）', () => {
@@ -115,7 +122,7 @@ describe('i18n 完整度', () => {
   }
 
   test('fork 字串 8 種語言的 key 完全一致', () => {
-    const tables = loadTables(['lib/i18n.js', 'fork/i18n/fork-i18n.js', 'fork/i18n/fork-strings.js', 'fork/i18n/settings-strings.js']);
+    const tables = loadTables(['lib/i18n.js', 'fork/i18n/fork-i18n.js', 'fork/i18n/fork-strings.js', 'fork/i18n/study-strings.js', 'fork/i18n/settings-strings.js', 'fork/i18n/settings-study-strings.js']);
     const keysOf = (l) => Object.keys(tables[l]).filter((k) => k.startsWith('fork.') || k.startsWith('error.bg.fork')).sort();
     const base = keysOf('zh-TW');
     expect(base.length).toBeGreaterThan(100);
@@ -123,16 +130,18 @@ describe('i18n 完整度', () => {
   });
 
   test('content script 的 i18n 子集也能載入 fork 字串', () => {
-    const tables = loadTables(['lib/i18n-content.js', 'fork/i18n/fork-strings.js']);
+    const tables = loadTables(['lib/i18n-content.js', 'fork/i18n/fork-strings.js', 'fork/i18n/study-strings.js']);
     for (const l of LANGS) {
       expect(tables[l]['fork.toast.mtDone']).toContain('{engine}');
       expect(tables[l]['error.bg.forkChainAllFailed']).toContain('{detail}');
       expect(typeof tables[l]['fork.engine.freeChain']).toBe('string');
+      expect(typeof tables[l]['fork.card.speak']).toBe('string');
+      expect(tables[l]['error.bg.forkTtsHttp']).toContain('{status}');
     }
   });
 
   test('設定頁用到的 key 都存在', () => {
-    const tables = loadTables(['lib/i18n.js', 'fork/i18n/fork-i18n.js', 'fork/i18n/fork-strings.js', 'fork/i18n/settings-strings.js']);
+    const tables = loadTables(['lib/i18n.js', 'fork/i18n/fork-i18n.js', 'fork/i18n/fork-strings.js', 'fork/i18n/study-strings.js', 'fork/i18n/settings-strings.js', 'fork/i18n/settings-study-strings.js']);
     const used = new Set();
     for (const f of ['fork/pages/settings.html', 'fork/pages/settings.js']) {
       const s = fs.readFileSync(path.join(ROOT, 'shinkansen', f), 'utf8');
@@ -143,7 +152,7 @@ describe('i18n 完整度', () => {
   });
 
   test('fork 程式碼裡 SK.t / _t / i18n.t 的字面 key 都存在（上游 i18n-key-references 測試的 fork 版）', () => {
-    const tables = loadTables(['lib/i18n.js', 'fork/i18n/fork-i18n.js', 'fork/i18n/fork-strings.js', 'fork/i18n/settings-strings.js']);
+    const tables = loadTables(['lib/i18n.js', 'fork/i18n/fork-i18n.js', 'fork/i18n/fork-strings.js', 'fork/i18n/study-strings.js', 'fork/i18n/settings-strings.js', 'fork/i18n/settings-study-strings.js']);
     const refs = [];
     for (const f of forkSources.filter((p) => p.endsWith('.js'))) {
       const src = fs.readFileSync(f, 'utf8');

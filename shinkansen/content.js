@@ -2035,6 +2035,8 @@
     // v2.0.85: Map 已全清,此時 DOM 上還掛注入痕跡的節點都是簿記追不到的無主殘留
     // (站點 clone / 換回舊節點),掃掉才不會讓 isPageTranslated() 永遠 true
     SK.sweepOrphanTranslationMarkers?.();
+    // [Ekiden fork] 整頁還原後，清掉「還原單一段落」加的 translate="no" 標記（fork/content/paragraph-tools.js）
+    SK.forkAfterRestorePage?.();
     return detached;
   }
 

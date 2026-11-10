@@ -99,9 +99,30 @@ input[aria-invalid="true"] { border-color: #c1312b; background: #fff1f0; }
 .restore-error { color: #c1312b; font-size: 13px; }
 .dialog-actions { justify-content: flex-end; margin-top: 16px; }
 
+/* ── 劃詞卡片 / 朗讀 / 自訂讀音（第 2 階段） ───────────── */
+/* 上游的 label 規則會蓋掉 hidden 屬性 */
+[hidden] { display: none !important; }
+#sec-study h3 { font-size: 14px; margin: 22px 0 4px; }
+#sec-study .test-row input[type="text"] { flex: 1; margin-top: 0; min-width: 0; }
+.pron-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.2fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+.pron-row input,
+.pron-row select { margin-top: 0; min-width: 0; }
+.pron-row .ghost-btn { padding: 4px 10px; }
+.pron-row .ipa,
+.ipa { font-family: "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Segoe UI", system-ui, sans-serif; }
+#learn-count:empty { display: none; }
+
 @media (max-width: 600px) {
   .container { margin: 0; padding: 16px; border-radius: 0; }
   .preset-row { grid-template-columns: 1fr; }
   .preset-row select,
   .preset-row .preset-note { grid-row: auto; grid-column: 1; margin-top: 6px; }
+  .pron-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .pron-row input[data-pron-field="value"] { grid-column: 1; }
 }
